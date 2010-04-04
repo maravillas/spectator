@@ -79,3 +79,22 @@
 	   4))
     (is (= (:c context)
 	   5))))
+
+(deftest removes-watches
+  (let [context {}
+	f (fn [old new] {:ran true})
+	context (watch-keys context f :foo)
+	context (unwatch-keys context f :foo)
+	context (update context :foo 1)]
+    (is (not (:ran context)))))
+
+(deftest removes-multiple-watches
+  (let [context {:count 0}
+	f (fn [old new] {:count (inc (:count new))})
+	context (watch-keys context f :foo :bar :baz)
+	context (unwatch-keys context f :foo :bar)
+	context (update context :foo 1)
+	context (update context :bar 1)
+	context (update context :baz 1)]
+    (is (= (:count context)
+	   1))))

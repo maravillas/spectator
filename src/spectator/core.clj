@@ -37,10 +37,19 @@ notified (defaults to false)."
 	silent new
 	true (notify-watchers context new)))))
 
+(defn- alter-watches
+  [context op f & keys]
+  (let [kvs (conj (vec (interpose f keys)) f)
+	watchers (:watchers (meta context))]
+    (with-meta context {:watchers (apply op watchers kvs)})))
+
 (defn watch-keys
   "Adds a watch that is run only when the key's value changes. f should be a
 function taking two arguments: the old context and the new context."
   [context f & keys]
-  (let [kvs (conj (vec (interpose f keys)) f)
-	watchers (:watchers (meta context))]
-    (with-meta context {:watchers (apply multimap/add watchers kvs)})))
+  (apply alter-watches context multimap/add f keys))
+
+(defn unwatch-keys
+  "Removes a watch from the specified keys."
+  [context f & keys]
+  (apply alter-watches context multimap/del f keys))
