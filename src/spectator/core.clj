@@ -8,7 +8,8 @@
     (recur old-context (merge context ((first watchers) old-context context)) (rest watchers))
     context))
 
-(defn notify-watchers [context updates]
+(defn- notify-watchers
+  [context updates]
   (let [old-context context
 	all-watchers (:watchers (meta context)) 
 	watchers (distinct (mapcat #(%1 all-watchers) (keys updates)))
@@ -23,21 +24,23 @@
        (= (key context) value)))
 
 (defn update 
+  "Updates the context with a new value. If silent is true,
+watchers are not notified (defaults to false)."
   ([context key value]
      (update context key value false))
 
   ([context key value silent]
-     "Updates the context with a new value."
      (let [new (assoc context key value)]
        (cond
 	(redundant-update? context key value) context
 	silent new
 	true (notify-watchers new {key value})))))
 
-(defn watch-keys [context f & keys]
+(defn watch-keys
   "Adds a watch to the context that is run only when the key's
 value changes. f should be a function taking two arguments: the
-context and the key's new value."
+old context and the new context."
+  [context f & keys]
   (let [kvs (conj (vec (interpose f keys)) f)
 	watchers (:watchers (meta context))]
     (with-meta context {:watchers (apply multimap/add watchers kvs)})))
