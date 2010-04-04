@@ -10,7 +10,7 @@
 
 (defn notify-watchers [context updates]
   (let [old-context context
-	all-watchers (:watchers context) 
+	all-watchers (:watchers (meta context)) 
 	watchers (distinct (mapcat #(%1 all-watchers) (keys updates)))
 	new-context (run-watchers old-context context watchers)
 	diff (map-diff old-context new-context)]
@@ -38,5 +38,6 @@
   "Adds a watch to the context that is run only when the key's
 value changes. f should be a function taking two arguments: the
 context and the key's new value."
-  (let [kvs (conj (vec (interpose f keys)) f)]
-    (assoc context :watchers (apply multimap/add (:watchers context) kvs))))
+  (let [kvs (conj (vec (interpose f keys)) f)
+	watchers (:watchers (meta context))]
+    (with-meta context {:watchers (apply multimap/add watchers kvs)})))
