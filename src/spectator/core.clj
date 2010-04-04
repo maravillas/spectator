@@ -10,11 +10,16 @@
 	   (rest watchers))
     new-context))
 
+(defn- watchers-for-keys
+  [context keys]
+  (let [watchers (:watchers (meta context))]
+    (distinct (mapcat #(%1 watchers) keys))))
+
 (defn- notify-watchers
   [old-context new-context]
   (let [all-watchers (:watchers (meta new-context))
 	diff (map-diff old-context new-context)
-	watchers (distinct (mapcat #(%1 all-watchers) diff))
+	watchers (watchers-for-keys new-context diff)
 	next-context (run-watchers old-context new-context watchers)]
     (if (seq diff)
       (recur new-context next-context)
@@ -36,6 +41,12 @@ notified (defaults to false)."
 	(redundant-update? context key value) context
 	silent new
 	true (notify-watchers context new)))))
+
+(defn touch
+  "Runs handlers without modifying a value."
+  [context & keys]
+  (let [watchers (watchers-for-keys context keys)]
+    (run-watchers context context watchers)))
 
 (defn- alter-watches
   [context op f & keys]

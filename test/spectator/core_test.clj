@@ -98,3 +98,25 @@
 	context (update context :baz 1)]
     (is (= (:count context)
 	   1))))
+
+(deftest runs-watchers-without-changes-for-one-key
+  (let [context {:count 0}
+	context (watch-keys context (fn [old new] {:count (inc (:count new))}) :foo)
+	context (touch context :foo)]
+    (is (= (:count context)
+	   1))))
+
+(deftest runs-one-watcher-without-changes-for-multiple-keys
+  (let [context {:count 0}
+	context (watch-keys context (fn [old new] {:count (inc (:count new))}) :foo :bar :baz)
+	context (touch context :foo :bar)]
+    (is (= (:count context)
+	   1))))
+
+(deftest runs-watchers-without-changes-for-multiple-keys
+  (let [context {:count 0}
+	context (watch-keys context (fn [old new] {:count (inc (:count new))}) :foo :baz)
+	context (watch-keys context (fn [old new] {:count (inc (:count new))}) :bar)
+	context (touch context :foo :bar)]
+    (is (= (:count context)
+	   2))))
