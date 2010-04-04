@@ -25,8 +25,8 @@
        (= (key context) value)))
 
 (defn update 
-  "Updates the context with a new value. If silent is true,
-watchers are not notified (defaults to false)."
+  "Updates the context with a new value. If silent is true, watchers are not
+notified (defaults to false)."
   ([context key value]
      (update context key value false))
 
@@ -38,9 +38,8 @@ watchers are not notified (defaults to false)."
 	true (notify-watchers context new)))))
 
 (defn watch-keys
-  "Adds a watch to the context that is run only when the key's
-value changes. f should be a function taking two arguments: the
-old context and the new context."
+  "Adds a watch that is run only when the key's value changes. f should be a
+function taking two arguments: the old context and the new context."
   [context f & keys]
   (let [kvs (conj (vec (interpose f keys)) f)
 	watchers (:watchers (meta context))]
