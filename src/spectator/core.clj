@@ -3,20 +3,21 @@
   (:use	[spectator.map-util]
 	[clojure.contrib swing-utils logging]))
 
-(defn- run-watchers [old-context context watchers]
+(defn- run-watchers [old-context new-context watchers]
   (if (first watchers)
-    (recur old-context (merge context ((first watchers) old-context context)) (rest watchers))
-    context))
+    (recur old-context
+	   (merge new-context ((first watchers) old-context new-context))
+	   (rest watchers))
+    new-context))
 
 (defn- notify-watchers
-  [context updates]
-  (let [old-context context
-	all-watchers (:watchers (meta context)) 
-	watchers (distinct (mapcat #(%1 all-watchers) (keys updates)))
-	new-context (run-watchers old-context context watchers)
-	diff (map-diff old-context new-context)]
+  [old-context new-context]
+  (let [all-watchers (:watchers (meta new-context))
+	diff (map-diff old-context new-context)
+	watchers (distinct (mapcat #(%1 all-watchers) diff))
+	next-context (run-watchers old-context new-context watchers)]
     (if (seq diff)
-      (recur new-context (select-keys new-context diff))
+      (recur new-context next-context)
       new-context)))
 
 (defn- redundant-update? [context key value]
@@ -34,7 +35,7 @@ watchers are not notified (defaults to false)."
        (cond
 	(redundant-update? context key value) context
 	silent new
-	true (notify-watchers new {key value})))))
+	true (notify-watchers context new)))))
 
 (defn watch-keys
   "Adds a watch to the context that is run only when the key's
