@@ -3,6 +3,9 @@
   (:use	[spectator.map-util]
 	[clojure.contrib swing-utils logging]))
 
+(defn- watchers [context]
+  (:watchers (meta context)))
+
 (defn- run-watchers [old-context new-context watchers]
   (if (first watchers)
     (recur old-context
@@ -12,13 +15,12 @@
 
 (defn- watchers-for-keys
   [context keys]
-  (let [watchers (:watchers (meta context))]
+  (let [watchers (watchers context)]
     (distinct (mapcat #(%1 watchers) keys))))
 
 (defn- notify-watchers
   [old-context new-context]
-  (let [all-watchers (:watchers (meta new-context))
-	diff (map-diff old-context new-context)
+  (let [diff (map-diff old-context new-context)
 	watchers (watchers-for-keys new-context diff)
 	next-context (run-watchers old-context new-context watchers)]
     (if (seq diff)
@@ -51,7 +53,7 @@ notified (defaults to false)."
 (defn- alter-watches
   [context op f & keys]
   (let [kvs (conj (vec (interpose f keys)) f)
-	watchers (:watchers (meta context))]
+	watchers (watchers context)]
     (with-meta context {:watchers (apply op watchers kvs)})))
 
 (defn watch-keys
