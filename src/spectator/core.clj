@@ -1,53 +1,64 @@
 (ns spectator.core
   (:require [spectator.multimap :as multimap])
-  (:use	[spectator.map-util]
+  (:use [spectator.map-util]
 	[clojure.contrib swing-utils logging]))
-
 
 (defn- watchers [context]
   (:watchers (meta context)))
 
-(defn- merge-changes [context changes]
-  (let [new-context (merge context changes)
-	new-memo (merge (memo context) (memo changes))]
-    (with-memo new-context new-memo)))
+(defn- merge-with-metadata [& maps]
+  (when (some identity maps)
+    (let [meta (apply merge (map meta maps))]
+      (with-meta (apply merge maps) meta))))
 
 (defn- without-memo [context]
   (with-meta context (dissoc (meta context) :memo)))
 
-(defn- run-watchers [old-context new-context watchers]
-  (if (first watchers)
-    (recur old-context
-	   (merge-changes new-context ((first watchers) old-context new-context))
-	   (rest watchers))
-    new-context))
+(defn- run-watchers [old-context updates watchers]
+  (let [new-context (merge-with-metadata old-context updates)]
+    (if (first watchers)
+      (recur old-context
+	     (merge-with-metadata updates ((first watchers) old-context new-context))
+	     (rest watchers))
+      updates)))
 
-(defn- watchers-for-keys
-  [context keys]
+(defn- watchers-for-keys [context keys]
   (let [watchers (watchers context)]
     (distinct (mapcat #(%1 watchers) keys))))
 
+(defn- map-subset?
+  "Determines whether m1 is a subset of m2."
+  [m1 m2]
+  (or (= (count m1) 0)
+      (every? #(and (contains? m2 %1)
+		  (= (%1 m1) (%1 m2)))
+	    (keys m1))))
+
 (defn- notify-watchers
-  [old-context new-context]
-  (let [diff (map-diff old-context new-context)
-	watchers (watchers-for-keys new-context diff)
-	next-context (run-watchers old-context new-context watchers)]
-    (if (seq diff)
-      (recur new-context next-context)
-      new-context)))
+  ([old-context updates]
+     (notify-watchers old-context updates updates))
+  
+  ([old-context updates all-updates]
+     (let [watchers     (watchers-for-keys old-context (keys updates))
+	   next-updates (run-watchers old-context updates watchers)
+	   new-context  (merge-with-metadata old-context updates)
+	   diff         (with-meta (map-diff updates next-updates)
+			  (merge (meta updates) (meta next-updates)))]
+       (if (not (map-subset? next-updates all-updates))
+	 (recur new-context diff (merge-with-metadata all-updates next-updates))
+	 all-updates))))
 
 (defn- redundant-update? [context key value]
   (and (contains? context key)
        (= (key context) value)))
 
-(defn- alter-watches
-  [context op f & keys]
+(defn- alter-watches [context op f & keys]
   (let [funcs (take (count keys) (repeat f))
 	kvs (interleave keys funcs)
 	watchers (watchers context)]
     (with-meta context {:watchers (apply op watchers kvs)})))
 
-
+;;; Public API
 
 (defn with-memo
   "Merges the specified key-value pairs with the context's memo."
@@ -66,14 +77,14 @@ notified (defaults to false)."
      (update context key value false))
 
   ([context key value silent]
-     (let [new (assoc context key value)
-	   initial-changes {:initial-changes {key value}}
+     (let [initial-changes {:initial-changes {key value}}
 	   redundant? (redundant-update? context key value)]
        (cond
 	redundant? context
-	silent     new
-	true       (without-memo (notify-watchers context
-						  (with-memo new initial-changes)))))))
+	silent     (assoc context key value)
+	true       (merge context (without-memo
+				   (notify-watchers context
+						    (with-memo {key value} initial-changes))))))))
 
 (defn touch
   "Runs handlers without modifying a value."

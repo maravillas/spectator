@@ -152,3 +152,10 @@
 	context (update context :foo 7)]
     (is (= (:changes context)
 	   {:foo 7}))))
+
+(deftest watchers-add-to-context
+  (let [context {:a 0 :b 1}
+	context (watch-keys context (fn [old new] {:d 3}) :c)
+	context (update context :c 2)]
+    (is (= context
+	   {:a 0 :b 1 :c 2 :d 3}))))
