@@ -55,11 +55,13 @@ notified (defaults to false)."
      (update context key value false))
 
   ([context key value silent]
-     (let [new (assoc context key value)]
+     (let [new (assoc context key value)
+	   initial-changes {:initial-changes {key value}}]
        (cond
 	(redundant-update? context key value) context
 	silent new
-	true (without-memo (notify-watchers context new))))))
+	true (without-memo (notify-watchers (with-memo context initial-changes)
+					    (with-memo new initial-changes)))))))
 
 (defn touch
   "Runs handlers without modifying a value."

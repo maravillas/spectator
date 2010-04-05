@@ -137,3 +137,10 @@
 	context (watch-keys context (fn [old new] (with-memo context {:has-memo true})) :foo)
 	context (update context :foo 1)]
     (is (not (memo context)))))
+
+(deftest includes-initial-changes
+  (let [context {}
+	context (watch-keys context (fn [old new] {:changes (:initial-changes (memo new))}) :foo)
+	context (update context :foo 7)]
+    (is (= (:changes context)
+	   {:foo 7}))))
