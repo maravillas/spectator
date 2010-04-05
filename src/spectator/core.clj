@@ -7,6 +7,7 @@
   (:watchers (meta context)))
 
 (defn with-memo
+  "Merges the specified key-value pairs with the context's memo."
   [context memo]
   (with-meta context (merge (meta context) {:memo memo})))
 
@@ -56,12 +57,13 @@ notified (defaults to false)."
 
   ([context key value silent]
      (let [new (assoc context key value)
-	   initial-changes {:initial-changes {key value}}]
+	   initial-changes {:initial-changes {key value}}
+	   redundant? (redundant-update? context key value)]
        (cond
-	(redundant-update? context key value) context
-	silent new
-	true (without-memo (notify-watchers (with-memo context initial-changes)
-					    (with-memo new initial-changes)))))))
+	redundant? context
+	silent     new
+	true       (without-memo (notify-watchers (with-memo context initial-changes)
+						  (with-memo new initial-changes)))))))
 
 (defn touch
   "Runs handlers without modifying a value."
