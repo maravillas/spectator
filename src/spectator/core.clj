@@ -3,18 +3,9 @@
   (:use	[spectator.map-util]
 	[clojure.contrib swing-utils logging]))
 
+
 (defn- watchers [context]
   (:watchers (meta context)))
-
-(defn with-memo
-  "Merges the specified key-value pairs with the context's memo."
-  [context memo]
-  (with-meta context (merge (meta context) {:memo memo})))
-
-(defn memo
-  "Retrieves the memos attached to a context."
-  [context]
-  (:memo (meta context)))
 
 (defn- merge-changes [context changes]
   (let [new-context (merge context changes)
@@ -49,6 +40,25 @@
   (and (contains? context key)
        (= (key context) value)))
 
+(defn- alter-watches
+  [context op f & keys]
+  (let [funcs (take (count keys) (repeat f))
+	kvs (interleave keys funcs)
+	watchers (watchers context)]
+    (with-meta context {:watchers (apply op watchers kvs)})))
+
+
+
+(defn with-memo
+  "Merges the specified key-value pairs with the context's memo."
+  [context memo]
+  (with-meta context (merge (meta context) {:memo memo})))
+
+(defn memo
+  "Retrieves the memos attached to a context."
+  [context]
+  (:memo (meta context)))
+
 (defn update 
   "Updates the context with a new value. If silent is true, watchers are not
 notified (defaults to false)."
@@ -70,13 +80,6 @@ notified (defaults to false)."
   [context & keys]
   (let [watchers (watchers-for-keys context keys)]
     (run-watchers context context watchers)))
-
-(defn- alter-watches
-  [context op f & keys]
-  (let [funcs (take (count keys) (repeat f))
-	kvs (interleave keys funcs)
-	watchers (watchers context)]
-    (with-meta context {:watchers (apply op watchers kvs)})))
 
 (defn watch-keys
   "Adds a watch that is run only when the key's value changes. f should be a
