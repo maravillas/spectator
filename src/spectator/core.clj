@@ -62,7 +62,7 @@ notified (defaults to false)."
        (cond
 	redundant? context
 	silent     new
-	true       (without-memo (notify-watchers (with-memo context initial-changes)
+	true       (without-memo (notify-watchers context
 						  (with-memo new initial-changes)))))))
 
 (defn touch
