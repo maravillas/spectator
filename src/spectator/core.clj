@@ -69,7 +69,8 @@ notified (defaults to false)."
 
 (defn- alter-watches
   [context op f & keys]
-  (let [kvs (conj (vec (interpose f keys)) f)
+  (let [funcs (take (count keys) (repeat f))
+	kvs (interleave keys funcs)
 	watchers (watchers context)]
     (with-meta context {:watchers (apply op watchers kvs)})))
 
