@@ -127,16 +127,24 @@
 
 (deftest updates-memo
   (let [context {}
-	context (watch-keys context (fn [old new] (with-memo context {:has-memo true})) :foo)
+	context (watch-keys context (fn [old new] (with-memo {} {:has-memo true})) :foo)
 	context (watch-keys context (fn [old new] {:has-memo (:has-memo (memo new))}) :foo)
 	context (update context :foo 1)]
     (is (:has-memo context))))
 
 (deftest memo-stripped-after-watches
   (let [context {}
-	context (watch-keys context (fn [old new] (with-memo context {:has-memo true})) :foo)
+	context (watch-keys context (fn [old new] (with-memo {} {:has-memo true})) :foo)
 	context (update context :foo 1)]
     (is (not (memo context)))))
+
+(deftest memo-persists-through-watcher-chains
+  (let [context {}
+	context (watch-keys context (fn [old new] (with-memo {:bar 1} {:has-memo true})) :foo)
+	context (watch-keys context (fn [old new] {:baz 1}) :bar)
+	context (watch-keys context (fn [old new] {:has-memo (:has-memo (memo new))}) :baz)
+	context (update context :foo 1)]
+    (is (:has-memo context))))
 
 (deftest includes-initial-changes
   (let [context {}
