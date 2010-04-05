@@ -120,3 +120,20 @@
 	context (touch context :foo :bar)]
     (is (= (:count context)
 	   2))))
+
+(deftest with-memo-adds-memo
+  (is (= (:foo (memo (with-memo {} {:foo 1})))
+	 1)))
+
+(deftest updates-memo
+  (let [context {}
+	context (watch-keys context (fn [old new] (with-memo context {:has-memo true})) :foo)
+	context (watch-keys context (fn [old new] {:has-memo (:has-memo (memo new))}) :foo)
+	context (update context :foo 1)]
+    (is (:has-memo context))))
+
+(deftest memo-stripped-after-watches
+  (let [context {}
+	context (watch-keys context (fn [old new] (with-memo context {:has-memo true})) :foo)
+	context (update context :foo 1)]
+    (is (not (memo context)))))

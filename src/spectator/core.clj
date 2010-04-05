@@ -6,10 +6,27 @@
 (defn- watchers [context]
   (:watchers (meta context)))
 
+(defn with-memo
+  [context memo]
+  (with-meta context (merge (meta context) {:memo memo})))
+
+(defn memo
+  "Retrieves the memos attached to a context."
+  [context]
+  (:memo (meta context)))
+
+(defn- merge-changes [context changes]
+  (let [new-context (merge context changes)
+	new-memo (merge (memo context) (memo changes))]
+    (with-memo new-context new-memo)))
+
+(defn- without-memo [context]
+  (with-meta context (dissoc (meta context) :memo)))
+
 (defn- run-watchers [old-context new-context watchers]
   (if (first watchers)
     (recur old-context
-	   (merge new-context ((first watchers) old-context new-context))
+	   (merge-changes new-context ((first watchers) old-context new-context))
 	   (rest watchers))
     new-context))
 
@@ -42,7 +59,7 @@ notified (defaults to false)."
        (cond
 	(redundant-update? context key value) context
 	silent new
-	true (notify-watchers context new)))))
+	true (without-memo (notify-watchers context new))))))
 
 (defn touch
   "Runs handlers without modifying a value."
