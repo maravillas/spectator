@@ -1,6 +1,6 @@
 (ns spectator.map-util)
 
-(defn merge-with-metadata [& maps]
+(defn merge-with-meta [& maps]
   "Returns a map that consists of the rest of the maps and their metadata
   conj-ed onto the first."
   (when (some identity maps)
