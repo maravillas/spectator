@@ -6,11 +6,6 @@
 (defn- watchers [context]
   (:watchers (meta context)))
 
-(defn- merge-with-metadata [& maps]
-  (when (some identity maps)
-    (let [meta (apply merge (map meta maps))]
-      (with-meta (apply merge maps) meta))))
-
 (defn- without-memo [context]
   (with-meta context (dissoc (meta context) :memo)))
 
@@ -25,14 +20,6 @@
 (defn- watchers-for-keys [context keys]
   (let [watchers (watchers context)]
     (distinct (mapcat #(%1 watchers) keys))))
-
-(defn- map-subset?
-  "Determines whether m1 is a subset of m2."
-  [m1 m2]
-  (or (= (count m1) 0)
-      (every? #(and (contains? m2 %1)
-		  (= (%1 m1) (%1 m2)))
-	    (keys m1))))
 
 (defn- notify-watchers
   ([old-context updates]
@@ -72,7 +59,7 @@
 
 (defn update 
   "Updates the context with a new value. If silent is true, watchers are not
-notified (defaults to false)."
+  notified (defaults to false)."
   ([context key value]
      (update context key value false))
 
@@ -94,7 +81,7 @@ notified (defaults to false)."
 
 (defn watch-keys
   "Adds a watch that is run only when the key's value changes. f should be a
-function taking two arguments: the old context and the new context."
+  function taking two arguments: the old context and the new context."
   [context f & keys]
   (apply alter-watches context multimap/add f keys))
 
