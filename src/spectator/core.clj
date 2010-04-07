@@ -60,18 +60,18 @@
 (defn update 
   "Updates the context with a new value. If silent is true, watchers are not
   notified (defaults to false)."
-  ([context key value]
-     (update context key value false))
+  ([context updates]
+     (update context updates false))
 
-  ([context key value silent]
-     (let [initial-changes {:initial-changes {key value}}
-	   redundant? (redundant-update? context key value)]
+  ([context updates silent]
+     (let [initial-changes {:initial-changes updates}
+	   redundant? (some #(apply redundant-update? context %1) updates)]
        (cond
 	redundant? context
-	silent     (assoc context key value)
+	silent     (merge-with-meta context updates)
 	true       (merge context (without-memo
 				   (notify-watchers context
-						    (with-memo {key value} initial-changes))))))))
+						    (with-memo updates initial-changes))))))))
 
 (defn touch
   "Runs handlers without modifying a value."

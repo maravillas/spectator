@@ -4,7 +4,7 @@
 
 (deftest updates-key
   (let [context {}
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (= (:foo context)
 	   1))))
 
@@ -12,7 +12,7 @@
   (let [context {:a 0 :b 3}
 	context (watch-keys context (fn [old new] {:a (max 0 (dec (:b new)))}) :b)
 	context (watch-keys context (fn [old new] {:b (max 0 (dec (:a new)))}) :a)
-	context (update context :a 3)]
+	context (update context {:a 3})]
     (is (= (:a  context)
 	   0))
     (is (= (:b context)
@@ -21,23 +21,23 @@
 (deftest watches-not-run-when-no-change
   (let [context {:foo 1}
 	context (watch-keys context (fn [old new] {:ran true}) :foo)
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (not (:ran context)))))
 
 (deftest watches-key
   (let [context {}
 	context (watch-keys context (fn [old new] {:ran true}) :foo)
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (:ran context))))
 
 (deftest watches-multiple-keys-with-one-watcher
   (let [context {:m 0 :n 0}
 	context (watch-keys context (fn [old new] {:max (max (:m new) (:n new))}) :m :n)
-	context (update context :m 1)]
+	context (update context { :m 1})]
     (is (= (:max context)
 	   1))
     
-    (let [context (update context :n 3)]
+    (let [context (update context {:n 3})]
       (is (= (:max context)
 	     3)))))
 
@@ -45,8 +45,8 @@
   (let [context {}
 	context (watch-keys context (fn [old new] {:next-i (inc (:i new))}) :i)
 	context (watch-keys context (fn [old new] {:next-j (dec (:j new))}) :j)
-	context (update context :i 3)
-	context (update context :j 8)]
+	context (update context {:i 3})
+	context (update context {:j 8})]
     (is (= (:next-i context)
 	   4))
     (is (= (:next-j context)
@@ -56,7 +56,7 @@
   (let [context {}
 	context (watch-keys context (fn [old new] {:next-i (inc (:i new))}) :i)
 	context (watch-keys context (fn [old new] {:prev-i (dec (:i new))}) :i)
-	context (update context :i 3)]
+	context (update context {:i 3})]
     (is (= (:next-i context)
 	   4))
     (is (= (:prev-i context)
@@ -66,7 +66,7 @@
   (let [context {}
 	context (watch-keys context (fn [old new] {:j (inc (:i new))}) :i)
 	context (watch-keys context (fn [old new] {:j (dec (:i new))}) :i)
-	context (update context :i 3)]
+	context (update context {:i 3})]
     (is (= (:j context)
 	   2))))
 
@@ -74,7 +74,7 @@
   (let [context {}
 	context (watch-keys context (fn [old new] {:b (inc (:a new))}) :a)
 	context (watch-keys context (fn [old new] {:c (inc (:b new))}) :b)
-	context (update context :a 3)]
+	context (update context {:a 3})]
     (is (= (:b context)
 	   4))
     (is (= (:c context)
@@ -85,7 +85,7 @@
 	f (fn [old new] {:ran true})
 	context (watch-keys context f :foo)
 	context (unwatch-keys context f :foo)
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (not (:ran context)))))
 
 (deftest removes-multiple-watches
@@ -93,9 +93,9 @@
 	f (fn [old new] {:count (inc (:count new))})
 	context (watch-keys context f :foo :bar :baz)
 	context (unwatch-keys context f :foo :bar)
-	context (update context :foo 1)
-	context (update context :bar 1)
-	context (update context :baz 1)]
+	context (update context {:foo 1})
+	context (update context {:bar 1})
+	context (update context {:baz 1})]
     (is (= (:count context)
 	   1))))
 
@@ -129,13 +129,13 @@
   (let [context {}
 	context (watch-keys context (fn [old new] (with-memo {} {:has-memo true})) :foo)
 	context (watch-keys context (fn [old new] {:has-memo (:has-memo (memo new))}) :foo)
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (:has-memo context))))
 
 (deftest memo-stripped-after-watches
   (let [context {}
 	context (watch-keys context (fn [old new] (with-memo {} {:has-memo true})) :foo)
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (not (memo context)))))
 
 (deftest memo-persists-through-watcher-chains
@@ -143,19 +143,19 @@
 	context (watch-keys context (fn [old new] (with-memo {:bar 1} {:has-memo true})) :foo)
 	context (watch-keys context (fn [old new] {:baz 1}) :bar)
 	context (watch-keys context (fn [old new] {:has-memo (:has-memo (memo new))}) :baz)
-	context (update context :foo 1)]
+	context (update context {:foo 1})]
     (is (:has-memo context))))
 
 (deftest includes-initial-changes
   (let [context {}
 	context (watch-keys context (fn [old new] {:changes (:initial-changes (memo new))}) :foo)
-	context (update context :foo 7)]
+	context (update context {:foo 7})]
     (is (= (:changes context)
 	   {:foo 7}))))
 
 (deftest watchers-add-to-context
   (let [context {:a 0 :b 1}
 	context (watch-keys context (fn [old new] {:d 3}) :c)
-	context (update context :c 2)]
+	context (update context {:c 2})]
     (is (= context
 	   {:a 0 :b 1 :c 2 :d 3}))))
