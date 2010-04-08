@@ -34,3 +34,36 @@
   (is (= (map-diff {}
 		   {:a 1})
 	 {:a 1})))
+
+(deftest merge-with-meta-merges
+  (let [m1 (with-meta {:a 1} {:meta-a 1})
+	m2 (with-meta {:b 2} {:meta-b 2})
+	merged (merge-with-meta m1 m2)]
+    (is (= merged
+	   (merge m1 m2)
+	   {:a 1 :b 2}))
+    (is (= (meta merged)
+	   {:meta-a 1 :meta-b 2}))))
+
+(deftest merge-with-meta-merges-right-to-left
+  (let [m1 (with-meta {:a 1 :b 3} {:meta-a 1 :meta-b 3})
+	m2 (with-meta {:b 2 :c 3} {:meta-b 2 :meta-c 3})
+	merged (merge-with-meta m1 m2)]
+    (is (= merged
+	   (merge m1 m2)
+	   {:a 1 :b 2 :c 3}))
+    (is (= (meta merged)
+	   {:meta-a 1 :meta-b 2 :meta-c 3}))))
+
+(deftest merge-with-meta-merges-one-map
+  (let [m1 (with-meta {:a 1} {:meta-a 1})
+	merged (merge-with-meta m1)]
+    (is (= merged
+	   (merge m1)
+	   {:a 1}))
+    (is (= (meta merged)
+	   {:meta-a 1}))))
+
+(deftest merge-with-meta-merges-no-maps
+  (is (= (merge-with-meta)
+	 (merge))))
