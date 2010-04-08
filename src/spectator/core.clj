@@ -56,12 +56,12 @@
 ;;; Public API
 
 (defn memo
-  "Retrieves the memos attached to a map."
+  "Returns the memos attached to a map."
   [map]
   (:memo (meta map)))
 
 (defn with-memo
-  "Merges the specified key-value pairs with the map's memo."
+  "Returns a new map with new-memo merged with the map's memo."
   [map new-memo]
   (let [current-memo (memo map)
 	new-memo (merge current-memo new-memo)]
@@ -74,8 +74,10 @@
   (with-memo {} {:veto true}))
 
 (defn update 
-  "Updates the map with a new value. If silent is true, watchers are not
-  notified (defaults to false)."
+  "Returns a new map that contains updated key-value mappings, and executes any
+  watchers for the corresponding keys. If silent is true, watchers are not
+  notified (defaults to false). Optionally supplies an additional memo to the
+  watchers (defaults to {})."
   ([map updates]
      (update map updates false))
 
@@ -93,7 +95,7 @@
 						(with-memo updates memo))))))))
 
 (defn touch
-  "Runs handlers without modifying a value."
+  "Runs handlers on the map without modifying its value."
   [map & keys]
   (let [watchers (watchers-for-keys map keys)]
     (run-watchers map map watchers)))
