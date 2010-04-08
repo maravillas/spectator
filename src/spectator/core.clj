@@ -1,7 +1,7 @@
 (ns spectator.core
   (:require [spectator.multimap :as multimap])
   (:use [spectator.map-util]
-	[clojure.contrib swing-utils logging]))
+	[clojure.contrib logging]))
 
 (declare memo with-memo veto)
 
@@ -53,7 +53,7 @@
 	watchers (watchers map)]
     (with-meta map {:watchers (apply op watchers kvs)})))
 
-;;; Public API
+;;;;;; Public API ;;;;;;
 
 (defn memo
   "Returns the memos attached to a map."
