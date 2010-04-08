@@ -8,6 +8,14 @@
     (is (= (:foo map)
 	   1))))
 
+(deftest updates-multiple-keys
+  (let [map (-> {}
+		(update {:foo 1 :bar 2}))]
+    (is (= (:foo map)
+	   1))
+    (is (= (:bar map)
+	   2))))
+
 (deftest stops-cycles-when-values-are-unchanged
   (let [map (-> {:a 0 :b 3}
 		(watch-keys (fn [old new] {:a (max 0 (dec (:b new)))}) :b)
@@ -47,6 +55,16 @@
 		(watch-keys (fn [old new] {:next-j (dec (:j new))}) :j)
 		(update {:i 3})
 		(update {:j 8}))]
+    (is (= (:next-i map)
+	   4))
+    (is (= (:next-j map)
+	   7))))
+
+(deftest watches-multiple-keys-with-multiple-watchers-in-one-update
+  (let [map (-> {}
+		(watch-keys (fn [old new] {:next-i (inc (:i new))}) :i)
+		(watch-keys (fn [old new] {:next-j (dec (:j new))}) :j)
+		(update {:i 3 :j 8}))]
     (is (= (:next-i map)
 	   4))
     (is (= (:next-j map)
