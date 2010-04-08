@@ -173,3 +173,13 @@
 	map (watch-keys map (fn [old new] {:memo (:foo (memo new))}) :bar)
 	map (update map {:bar 1} false {:foo true})]
     (is (:memo map))))
+
+(deftest keeps-old-and-new-params-correct
+  (let [map {:a 1 :b 2}
+	map (watch-keys map (fn [old new]
+			      {:old old :new new}) :c)
+	map (update map {:c 3})]
+    (is (= (:old map)
+	   {:a 1 :b 2}))
+    (is (= (:new map)
+	   {:a 1 :b 2 :c 3}))))
