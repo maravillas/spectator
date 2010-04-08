@@ -3,19 +3,25 @@
   (:use [spectator.map-util]
 	[clojure.contrib swing-utils logging]))
 
+(declare memo with-memo veto)
+
 (defn- watchers [map]
   (:watchers (meta map)))
 
 (defn- without-memo [map]
   (with-meta map (dissoc (meta map) :memo)))
 
+(defn- vetoed? [map]
+  (:veto (memo map)))
+
 (defn- run-watchers [old-map updates watchers]
   (let [new-map (merge-with-meta old-map updates)]
-    (if (first watchers)
-      (recur old-map
-	     (merge-with-meta updates ((first watchers) old-map new-map))
-	     (rest watchers))
-      updates)))
+    (if (nil? (first watchers))
+      updates
+      (let [new-updates (merge-with-meta updates ((first watchers) old-map new-map))]
+	(if (vetoed? new-updates)
+	  (veto)
+	  (recur old-map new-updates (rest watchers)))))))
 
 (defn- watchers-for-keys [map keys]
   (let [watchers (watchers map)]
@@ -30,10 +36,12 @@
 	   next-updates (run-watchers old-map updates watchers)
 	   new-map      (merge-with-meta old-map updates)
 	   diff         (with-meta (map-diff updates next-updates)
-			  (merge (meta updates) (meta next-updates)))]
-       (if (not (map-subset? next-updates all-updates))
-	 (recur new-map diff (merge-with-meta all-updates next-updates))
-	 all-updates))))
+			  (merge (meta updates) (meta next-updates)))
+	   changed?     (not (map-subset? next-updates all-updates))]
+       (cond
+	(vetoed? next-updates) {}
+	changed?               (recur new-map diff (merge-with-meta all-updates next-updates))
+	true                   all-updates))))
 
 (defn- redundant-update? [map key value]
   (and (contains? map key)
@@ -58,6 +66,12 @@
   (let [current-memo (memo map)
 	new-memo (merge current-memo new-memo)]
     (with-meta map (merge (meta map) {:memo new-memo}))))
+
+(defn veto
+  "Marks an update as vetoed, aborting its change and any changes caused by
+  subsequent watchers. Watchers after the vetoing watcher are not executed."
+  []
+  (with-memo {} {:veto true}))
 
 (defn update 
   "Updates the map with a new value. If silent is true, watchers are not

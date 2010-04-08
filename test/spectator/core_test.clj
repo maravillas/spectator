@@ -189,3 +189,21 @@
 	map (with-memo map {:b 2})]
     (is (= (memo map)
 	   {:a 1 :b 2}))))
+
+(deftest vetoes-updates
+  (let [map {:foo 1}
+	map (watch-keys map (fn [old new] {:foo 2}) :bar)
+	map (watch-keys map (fn [old new] (veto)) :bar)
+	map (watch-keys map (fn [old new] {:foo 3}) :bar)
+	map (update map {:bar 1})]
+    (is (= (:foo map)
+	   1))
+    (is (not (:bar map)))))
+
+(deftest vetoes-skip-further-watchers
+  (let [flag (ref false)
+	map {}
+	map (watch-keys map (fn [old new] (veto)) :foo)
+	map (watch-keys map (fn [old new] (dosync (ref-set flag true))) :foo)
+	map (update map {:foo 1})]
+    (is (not @flag))))
