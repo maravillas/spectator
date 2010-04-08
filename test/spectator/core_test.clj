@@ -183,3 +183,9 @@
 	   {:a 1 :b 2}))
     (is (= (:new map)
 	   {:a 1 :b 2 :c 3}))))
+
+(deftest merges-memos
+  (let [map (with-meta {:foo 1} {:memo {:a 1}})
+	map (with-memo map {:b 2})]
+    (is (= (memo map)
+	   {:a 1 :b 2}))))

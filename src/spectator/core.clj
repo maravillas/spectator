@@ -47,15 +47,17 @@
 
 ;;; Public API
 
-(defn with-memo
-  "Merges the specified key-value pairs with the map's memo."
-  [map memo]
-  (with-meta map (merge (meta map) {:memo memo})))
-
 (defn memo
   "Retrieves the memos attached to a map."
   [map]
   (:memo (meta map)))
+
+(defn with-memo
+  "Merges the specified key-value pairs with the map's memo."
+  [map new-memo]
+  (let [current-memo (memo map)
+	new-memo (merge current-memo new-memo)]
+    (with-meta map (merge (meta map) {:memo new-memo}))))
 
 (defn update 
   "Updates the map with a new value. If silent is true, watchers are not
