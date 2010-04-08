@@ -67,3 +67,21 @@
 (deftest merge-with-meta-merges-no-maps
   (is (= (merge-with-meta)
 	 (merge))))
+
+(deftest map-subset?-identifies-empty-set-as-subset
+  (is (map-subset? {} {:a 1})))
+
+(deftest map-subset?-identifies-subset
+  (let [m1 {:a 1 :b 2}
+	m2 {:a 1 :b 2 :d 7}]
+    (is (map-subset? m1 m2))))
+
+(deftest map-subset?-differentiates-on-values
+  (let [m1 {:a 1}
+	m2 {:a 2 :b 2}]
+    (is (not (map-subset? m1 m2)))))
+
+(deftest map-subset?-differentiates-on-keys
+  (let [m1 {:a 1}
+	m2 {:b 1}]
+    (is (not (map-subset? m1 m2)))))
