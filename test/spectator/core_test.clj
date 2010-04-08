@@ -159,3 +159,17 @@
 	map (update map {:c 2})]
     (is (= map
 	   {:a 0 :b 1 :c 2 :d 3}))))
+
+(deftest updates-silently
+  (let [map {}
+	map (watch-keys map (fn [old new] {:run true}) :foo)
+	map (update map {:foo 1} true)]
+    (is (= (:foo map)
+	   1))
+    (is (not (:run map)))))
+
+(deftest sends-initial-memo
+  (let [map {}
+	map (watch-keys map (fn [old new] {:memo (:foo (memo new))}) :bar)
+	map (update map {:bar 1} false {:foo true})]
+    (is (:memo map))))

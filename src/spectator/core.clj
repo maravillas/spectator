@@ -64,14 +64,17 @@
      (update map updates false))
 
   ([map updates silent]
-     (let [initial-changes {:initial-changes updates}
+     (update map updates silent {}))
+
+  ([map updates silent memo]
+     (let [memo (merge memo {:initial-changes updates})
 	   redundant? (some #(apply redundant-update? map %1) updates)]
        (cond
 	redundant? map
 	silent     (merge-with-meta map updates)
 	true       (merge map (without-memo
 			       (notify-watchers map
-						(with-memo updates initial-changes))))))))
+						(with-memo updates memo))))))))
 
 (defn touch
   "Runs handlers without modifying a value."
