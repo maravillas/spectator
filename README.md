@@ -142,9 +142,10 @@ Watchers can opt to veto all updates stemming from the initial update, including
 Veto updates by setting the <tt>:veto</tt> key in the memo to <tt>true</tt>, or by returning the result of the convenience function <tt>veto</tt>.
 
     (let [map (-> {}
-                  (watch-keys (fn [old new] (veto)) :celsius)
+                  (watch-keys (fn [old new] (when (not (integer? (:celsius new))) (veto)))
+		  	      :celsius)
                   (watch-keys (fn [old new] update-fahrenheit) :celsius)
-                  (update {:celsius 100}))]
+                  (update {:celsius "one hundred"}))]
       map)
 
     => {}
