@@ -42,10 +42,10 @@ Applicable watchers are run in the order they were added with each change to the
       {:kelvin (celsius-to-kelvin (:celsius new))})
 
     (let [map (-> {}
-     	          (watch-keys update-celsius :fahrenheit)
+                  (watch-keys update-celsius :fahrenheit)
                   (watch-keys update-kelvin :celsius)
                   (update {:fahrenheit 212}))]
-      map)		 		
+      map)
 
     => {:fahrenheit 212, :celsius 100, :kelvin 373.15}
 
@@ -67,7 +67,7 @@ Updates that don't change the map won't trigger the watchers.
 
     (let [map (-> {:fahrenheit 0 :celsius 0}
                   (watch-keys update-fahrenheit :celsius)
-		  (update {:celsius 0}))]
+                  (update {:celsius 0}))]
       map)
 
     => {:fahrenheit 0, :celsius 0}
@@ -76,7 +76,7 @@ The <tt>touch</tt> function will run the watchers without making a change to the
   
     (let [map (-> {:fahrenheit 0 :celsius 0}
                   (watch-keys update-fahrenheit :celsius)
-		  (touch :celsius))]
+                  (touch :celsius))]
       map)
 
     => {:fahrenheit 32, :celsius 0}
@@ -87,7 +87,7 @@ The map can be updated without executing the relevant watchers by specifying <tt
 
     (let [map (-> {:fahrenheit 0 :celsius 0}
                   (watch-keys update-fahrenheit :celsius)
-		  (update {:celsius 17} true))]
+                  (update {:celsius 17} true))]
       map)  
 
     => {:fahrenheit 0, :celsius 17}
@@ -99,8 +99,8 @@ Extra information can be sent to the watchers through <tt>update</tt> by specify
 This map, along with an extra entry <tt>:initial-changes</tt>, is available to watchers by accessing the <tt>new</tt> parameter's metadata. Alternately, it can be read using the <tt>memo</tt> convenience function.
 
     (let [map (-> {}
-    	          (watch-keys (fn [old new] {:info (memo new)}) :celsius)
-		  (update {:celsius 7} false {:source "sensor 1"}))]
+                  (watch-keys (fn [old new] {:info (memo new)}) :celsius)
+                  (update {:celsius 7} false {:source "sensor 1"}))]
       map)
 
     => {:celsius 7, :info {:source "sensor 1", :initial-changes {:celsius 7}}}
@@ -108,11 +108,11 @@ This map, along with an extra entry <tt>:initial-changes</tt>, is available to w
 Watchers can modify the memo for subsequent watchers using <tt>with-memo</tt>. Changes to the memo will not result in further cycles of watchers.
 
     (let [map (-> {}
-    	          (watch-keys (fn [old new]
+                  (watch-keys (fn [old new]
                                 (when (not (:enabled new))
                                   (with-memo {:enabled true} {:handled true})))
                               :clicked)
-		  (watch-keys (fn [old new]
+                  (watch-keys (fn [old new]
                                 (when (:handled (memo new))
                                   {:complete true}))
                               :clicked))]
@@ -129,7 +129,7 @@ Watchers can modify the memo for subsequent watchers using <tt>with-memo</tt>. C
 The memo is not available outside of the watchers.
 
     (let [map (-> {}
-    	          (watch-keys (fn [old new] {:info (memo new)}) :foo)
+                  (watch-keys (fn [old new] {:info (memo new)}) :foo)
                   (update {:foo true} false {:extra-info 42}))]
       (memo map))
 
@@ -142,7 +142,7 @@ Watchers can opt to veto all updates stemming from the initial update, including
 Veto updates by setting the <tt>:veto</tt> key in the memo to <tt>true</tt>, or by returning the result of the convenience function <tt>veto</tt>.
 
     (let [map (-> {}
-    	       	  (watch-keys (fn [old new] (veto)) :celsius)
+                  (watch-keys (fn [old new] (veto)) :celsius)
                   (watch-keys (fn [old new] update-fahrenheit) :celsius)
                   (update {:celsius 100}))]
       map)
