@@ -47,6 +47,14 @@
   (and (contains? map key)
        (= (key map) value)))
 
+(defn- update-map [map updates silent memo]
+  (let [memo (merge memo {:initial-changes updates})]
+    (if silent
+      (merge-with-meta map updates)
+      (merge map (without-memo
+		  (notify-watchers map
+				   (with-memo updates memo)))))))
+
 (defn- alter-watches [map op f & keys]
   (let [funcs (take (count keys) (repeat f))
 	kvs (interleave keys funcs)
@@ -85,20 +93,16 @@
      (update map updates silent {}))
 
   ([map updates silent memo]
-     (let [memo (merge memo {:initial-changes updates})
-	   redundant? (some #(apply redundant-update? map %1) updates)]
-       (cond
-	redundant? map
-	silent     (merge-with-meta map updates)
-	true       (merge map (without-memo
-			       (notify-watchers map
-						(with-memo updates memo))))))))
+     (let [redundant? (some #(apply redundant-update? map %1) updates)]
+       (if redundant? map
+	   (update-map map updates silent memo)))))
 
 (defn touch
   "Runs handlers on the map without modifying its value."
   [map & keys]
-  (let [watchers (watchers-for-keys map keys)]
-    (run-watchers map map watchers)))
+  (let [kvs (merge (apply hash-map (interleave keys (take (count keys) (repeat nil))))
+		   (select-keys map keys))]
+    (update-map map kvs false {})))
 
 (defn watch-keys
   "Adds a watch that is run only when the key's value changes. f should be a

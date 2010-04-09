@@ -139,6 +139,14 @@
     (is (= (:count map)
 	   2))))
 
+(deftest runs-chained-watchers-without-changes
+  (let [map (-> {:count 0}
+		(watch-keys (fn [old new] {:bar 1 :count (inc (:count new))}) :foo)
+		(watch-keys (fn [old new] {:count (inc (:count new))}) :bar)
+		(touch :foo))]
+    (is (= (:count map)
+	   2))))
+
 (deftest with-memo-adds-memo
   (is (= (:foo (memo (with-memo {} {:foo 1})))
 	 1)))
