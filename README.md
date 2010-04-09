@@ -143,7 +143,7 @@ Veto updates by setting the <tt>:veto</tt> key in the memo to <tt>true</tt>, or 
 
     (let [map (-> {}
                   (watch-keys (fn [old new] (when (not (integer? (:celsius new))) (veto)))
-		  	      :celsius)
+		              :celsius)
                   (watch-keys (fn [old new] update-fahrenheit) :celsius)
                   (update {:celsius "one hundred"}))]
       map)
