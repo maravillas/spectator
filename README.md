@@ -24,7 +24,7 @@ Add watchers to maps using <tt>watch-keys</tt>, specifying the key(s) they shoul
     
     (let [map {}
           map (watch-keys map update-fahrenheit :celsius)
-	  map (update map {:celsius 15})]
+          map (update map {:celsius 15})]
       map)
 
     => {:celsius 15, :fahrenheit 59}
@@ -43,17 +43,17 @@ Applicable watchers are run in the order they were added with each change to the
 
     (let [map (-> {}
      	          (watch-keys update-celsius :fahrenheit)
-		  (watch-keys update-kelvin :celsius)
-		  (update {:fahrenheit 212}))]
+                  (watch-keys update-kelvin :celsius)
+                  (update {:fahrenheit 212}))]
       map)		 		
 
     => {:fahrenheit 212, :celsius 100, :kelvin 373.15}
 
-Cycles of watchers are fine, but you need to ensure that the values will eventually converge. Expanding on the celsius/fahrenheit example above:
+Cycles of watchers are fine, but you need to ensure that the values will eventually converge.
 
     (def m (-> {}
                (watch-keys update-fahrenheit :celsius)
-	       (watch-keys update-celsius :fahrenheit)))
+               (watch-keys update-celsius :fahrenheit)))
 
     (update m {:celsius 17})
 
@@ -109,13 +109,13 @@ Watchers can modify the memo for subsequent watchers using <tt>with-memo</tt>. C
 
     (let [map (-> {}
     	          (watch-keys (fn [old new]
-		  	        (when (not (:enabled new))
-				  (with-memo {:enabled true} {:handled true})))
-		              :clicked)
+                                (when (not (:enabled new))
+                                  (with-memo {:enabled true} {:handled true})))
+                              :clicked)
 		  (watch-keys (fn [old new]
-		  	        (when (:handled (memo new))
-				  {:complete true}))
-			      :clicked))]
+                                (when (:handled (memo new))
+                                  {:complete true}))
+                              :clicked))]
       (update map {:clicked true}))
 
     => {:clicked true, :complete true, :enabled true}
@@ -130,7 +130,7 @@ The memo is not available outside of the watchers.
 
     (let [map (-> {}
     	          (watch-keys (fn [old new] {:info (memo new)}) :foo)
-		  (update {:foo true} false {:extra-info 42}))]
+                  (update {:foo true} false {:extra-info 42}))]
       (memo map))
 
     => nil
@@ -143,8 +143,8 @@ Veto updates by setting the <tt>:veto</tt> key in the memo to <tt>true</tt>, or 
 
     (let [map (-> {}
     	       	  (watch-keys (fn [old new] (veto)) :celsius)
-		  (watch-keys (fn [old new] update-fahrenheit) :celsius)
-		  (update {:celsius 100}))]
+                  (watch-keys (fn [old new] update-fahrenheit) :celsius)
+                  (update {:celsius 100}))]
       map)
 
     => {}
