@@ -1,6 +1,6 @@
 # Spectator
 
-Spectator is a Clojure library that provides a system for observing changes to maps. It's similar in spirit to Clojure's [add-watch](http://richhickey.github.com/clojure/clojure.core-api.html#clojure.core/add-watch) mechanism for vars, refs, agents, and atoms, but differs in certain important regards.
+Spectator is a Clojure library that provides a system for observing changes to maps. It's similar in spirit to Clojure's [add-watch](http://richhickey.github.com/clojure/clojure.core-api.html#clojure.core/add-watch) mechanism for vars, refs, agents, and atoms, but differs in certain important regards. (More information about the main differences is at [http://matthewm.net/blog/2010/04/09/spectator/](http://matthewm.net/blog/2010/04/09/spectator/).)
 
 ## Usage
 
