@@ -8,6 +8,9 @@
 (defn- watchers [map]
   (:watchers (meta map)))
 
+(defn- impure-watchers [map]
+  (:impure-watchers (meta map)))
+
 (defn- without-memo [map]
   (with-meta map (dissoc (meta map) :memo)))
 
@@ -42,6 +45,12 @@
 	changed?               (recur new-map diff (merge-with-meta all-updates next-updates))
 	true                   all-updates))))
 
+(defn- notify-impure-watchers
+  [old-map new-map keys agent]
+  (send agent (fn [state]
+		(doseq [watcher (watchers-for-keys (impure-watchers old-map) keys)]
+		  (watcher old-map new-map)))))
+
 (defn- redundant-update? [map key value]
   (and (contains? map key)
        (= (key map) value)))
@@ -53,7 +62,7 @@
 (defn- alter-watches [map watcher-key op f & keys]
   (let [funcs (take (count keys) (repeat f))
 	kvs (interleave keys funcs)
-	watchers (watchers map)]
+	watchers (watcher-key (meta map))]
     (with-meta map (merge (meta map) {watcher-key (apply op watchers kvs)}))))
 
 ;;;;;; Public API ;;;;;;
@@ -88,12 +97,16 @@
      (update map updates silent {}))
 
   ([map updates silent memo]
+     (update map updates silent memo (agent nil)))
+  
+  ([map updates silent memo agent]
      (let [redundant? (some #(apply redundant-update? map %1) updates)]
        (cond
 	redundant? map
 	silent     (merge-with-meta map updates)
 	true       (let [diff (combine-watcher-updates map updates memo)
 			 new-map (merge-with-meta map diff)]
+		     (notify-impure-watchers map new-map (keys diff) agent)
 		     new-map)))))
 
 (defn touch
@@ -104,7 +117,7 @@
     (merge-with-meta map (combine-watcher-updates map kvs {}))))
 
 (defn watch-keys
-  "Adds a watch that is run only when the key's value changes. f should be a
+  "Adds a pure watch that is run when the key's value changes. f should be a
   function taking two arguments: the old map and the new map."
   [map f & keys]
   (apply alter-watches map :watchers multimap/add f keys))
@@ -113,3 +126,16 @@
   "Removes a watch from the specified keys."
   [map f & keys]
   (apply alter-watches map :watchers multimap/del f keys))
+
+(defn watch-keys-impure
+  "Adds an impure watch that is run when the key's value changes. Impure watches
+  are run in an agent after pure watches, and their return values are ignored.
+
+  f should be a function taking two arguments: the old map and the new map."
+  [map f & keys]
+  (apply alter-watches map :impure-watchers multimap/add f keys))
+
+(defn unwatch-keys-impure
+  "Removes an impure watch from the specified keys."
+  [map f & keys]
+  (apply alter-watches map :impure-watchers multimap/del f keys))

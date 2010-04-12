@@ -239,3 +239,57 @@
 		(watch-keys (fn [old new] {:ran true}) :foo)
 		(update {:foo true}))]
     (is (:meta (meta map)))))
+
+(deftest runs-impure-watchers
+  (let [atom (atom false)
+	agent (agent nil)
+	map (-> {}
+		(watch-keys (fn [old new] {:pure true}) :foo)
+		(watch-keys-impure (fn [old new] (swap! atom (fn [_] true))) :foo)
+		(update {:foo true} false {} agent))]
+    (await agent)
+    (is @atom)))
+
+(deftest ignores-impure-results
+  (let [atom (atom false)
+	agent (agent nil)
+	map (-> {:ignored true}
+		(watch-keys-impure (fn [old new] {:ignored false}) :foo)
+		(update {:foo true} false {} agent))]
+    (await agent)
+    (is (:ignored map))))
+
+(deftest provides-impure-watchers-with-contexts
+  (let [atom (atom {})
+	agent (agent nil)
+	map (-> {:foo false :bar true}
+		(watch-keys-impure (fn [old new] (swap! atom (fn [_] {:old old :new new}))) :foo)
+		(update {:foo true} false {} agent))]
+    (await agent)
+    (is (= (:new @atom)
+	   {:foo true :bar true}))
+    (is (= (:old @atom)
+	   {:foo false :bar true}))))
+
+(deftest runs-impure-watchers-for-changed-key-only
+  (let [ref1 (ref false)
+	ref2 (ref false)
+	agent (agent nil)
+	map (-> {}
+		(watch-keys-impure (fn [old new] (dosync (ref-set ref1 true))) :foo)
+		(watch-keys-impure (fn [old new] (dosync (ref-set ref2 true))) :bar)
+		(update {:foo true} false {} agent))]
+    (await agent)
+    (is @ref1)
+    (is (not @ref2))))
+
+(deftest runs-pure-watchers-before-impure-watchers
+  (let [ref (ref {})
+	agent (agent nil)
+	map (-> {:foo false :bar false}
+		(watch-keys (fn [old new] {:bar true}) :foo)
+		(watch-keys-impure (fn [old new] (dosync (ref-set ref new))) :foo)
+		(update {:foo true} false {} agent))]
+    (await agent)
+    (is (= @ref
+	   {:foo true :bar true}))))
