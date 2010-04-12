@@ -81,6 +81,24 @@ The <tt>touch</tt> function will run the watchers without making a change to the
 
     => {:fahrenheit 32, :celsius 0}
 
+### Impure Watchers
+
+Side effects in watchers are not inherently bad, but when a map is stored in an atom or ref, its watchers may be called multiple times when the atom or ref tries to commit its value. If such is the case, <tt>watch-keys</tt> should only be used to add pure watcher functions. Impure watchers are added and removed using <tt>watch-keys-impure</tt> and <tt>unwatch-keys-impure</tt>.
+
+Impure watchers are treated differently. Pure watchers are run first, possibly multiple times due both to cascading updates and to atom/ref retries. Once the pure watcher updates have been resolved, impure watchers are dispatched to an agent with the old and new states. If the update is being run in a transaction, the dispatch is not executed until the transaction commits, as per the [Clojure docs](http://clojure.org/agents). 
+
+Return values from these watchers are ignored - they cannot make further modifications to the map. The agent in which the impure watchers are run will receive a value of nil once they are completed, but this behavior should not be relied upon.
+
+If the current thread needs to block until the impure watchers have completed, pass an agent to <tt>update</tt> and <tt>await</tt> it after the update:
+
+    (let [agent (agent nil)
+          map (-> {}
+                  (watch-keys-impure (fn [old new] (debug "Impure watcher executing...")) :foo)
+                  (update {:foo true} false {} agent))]
+      (await agent))
+
+Otherwise, you can omit the agent parameter and <tt>update</tt> will supply its own.
+
 ### Silent Updates
 
 The map can be updated without executing the relevant watchers by specifying <tt>true</tt> for the silent parameter. The default value is <tt>false</tt>.
