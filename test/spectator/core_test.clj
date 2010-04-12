@@ -233,3 +233,9 @@
 		(watch-keys (fn [old new] (dosync (ref-set flag true))) :foo)
 		(update {:foo 1}))]
     (is (not @flag))))
+
+(deftest preserves-metadata
+  (let [map (-> (with-meta {} {:meta true})
+		(watch-keys (fn [old new] {:ran true}) :foo)
+		(update {:foo true}))]
+    (is (:meta (meta map)))))

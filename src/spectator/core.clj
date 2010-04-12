@@ -23,16 +23,15 @@
 	  (veto)
 	  (recur old-map new-updates (rest watchers)))))))
 
-(defn- watchers-for-keys [map keys]
-  (let [watchers (watchers map)]
-    (distinct (mapcat #(%1 watchers) keys))))
+(defn- watchers-for-keys [watchers keys]
+  (distinct (mapcat #(%1 watchers) keys)))
 
 (defn- notify-watchers
   ([old-map updates]
      (notify-watchers old-map updates updates))
   
   ([old-map updates all-updates]
-     (let [watchers     (watchers-for-keys old-map (keys updates))
+     (let [watchers     (watchers-for-keys (watchers old-map) (keys updates))
 	   next-updates (run-watchers old-map updates watchers)
 	   new-map      (merge-with-meta old-map updates)
 	   diff         (with-meta (map-diff updates next-updates)
@@ -47,19 +46,15 @@
   (and (contains? map key)
        (= (key map) value)))
 
-(defn- update-map [map updates silent memo]
+(defn- combine-watcher-updates [map updates memo]
   (let [memo (merge memo {:initial-changes updates})]
-    (if silent
-      (merge-with-meta map updates)
-      (merge map (without-memo
-		  (notify-watchers map
-				   (with-memo updates memo)))))))
+    (without-memo (notify-watchers map (with-memo updates memo)))))
 
-(defn- alter-watches [map op f & keys]
+(defn- alter-watches [map watcher-key op f & keys]
   (let [funcs (take (count keys) (repeat f))
 	kvs (interleave keys funcs)
 	watchers (watchers map)]
-    (with-meta map {:watchers (apply op watchers kvs)})))
+    (with-meta map (merge (meta map) {watcher-key (apply op watchers kvs)}))))
 
 ;;;;;; Public API ;;;;;;
 
@@ -94,23 +89,27 @@
 
   ([map updates silent memo]
      (let [redundant? (some #(apply redundant-update? map %1) updates)]
-       (if redundant? map
-	   (update-map map updates silent memo)))))
+       (cond
+	redundant? map
+	silent     (merge-with-meta map updates)
+	true       (let [diff (combine-watcher-updates map updates memo)
+			 new-map (merge-with-meta map diff)]
+		     new-map)))))
 
 (defn touch
   "Runs handlers on the map without modifying its value."
   [map & keys]
   (let [kvs (merge (apply hash-map (interleave keys (take (count keys) (repeat nil))))
 		   (select-keys map keys))]
-    (update-map map kvs false {})))
+    (merge-with-meta map (combine-watcher-updates map kvs {}))))
 
 (defn watch-keys
   "Adds a watch that is run only when the key's value changes. f should be a
   function taking two arguments: the old map and the new map."
   [map f & keys]
-  (apply alter-watches map multimap/add f keys))
+  (apply alter-watches map :watchers multimap/add f keys))
 
 (defn unwatch-keys
   "Removes a watch from the specified keys."
   [map f & keys]
-  (apply alter-watches map multimap/del f keys))
+  (apply alter-watches map :watchers multimap/del f keys))
