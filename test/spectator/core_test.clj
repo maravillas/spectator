@@ -127,7 +127,7 @@
 (deftest runs-one-watcher-without-changes-for-multiple-keys
   (let [map (-> {:count 0}
 		(watch-keys (fn [old new] {:count (inc (:count new))}) :foo :bar :baz)
-		(touch :foo :bar))]
+		(touch nil :foo :bar))]
     (is (= (:count map)
 	   1))))
 
@@ -135,7 +135,7 @@
   (let [map (-> {:count 0}
 		(watch-keys (fn [old new] {:count (inc (:count new))}) :foo :baz)
 		(watch-keys (fn [old new] {:count (inc (:count new))}) :bar)
-		(touch :foo :bar))]
+		(touch nil :foo :bar))]
     (is (= (:count map)
 	   2))))
 
@@ -293,3 +293,12 @@
     (await agent)
     (is (= @ref
 	   {:foo true :bar true}))))
+
+(deftest runs-impure-watchers-without-changes
+  (let [ref (ref false)
+	agent (agent nil)
+	map (-> {}
+		(watch-keys-impure (fn [old new] (dosync (ref-set ref true))) :foo)
+		(touch agent :foo))]
+    (await agent)
+    (is @ref)))

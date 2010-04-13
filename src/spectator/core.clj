@@ -47,9 +47,11 @@
 
 (defn- notify-impure-watchers
   [old-map new-map keys agent]
-  (send agent (fn [state]
-		(doseq [watcher (watchers-for-keys (impure-watchers old-map) keys)]
-		  (watcher old-map new-map)))))
+  (let [watchers (watchers-for-keys (impure-watchers old-map) keys)]
+    (when (and watchers agent)
+      (send agent (fn [state]
+		    (doseq [watcher watchers]
+		      (watcher old-map new-map)))))))
 
 (defn- redundant-update? [map key value]
   (and (contains? map key)
@@ -111,10 +113,15 @@
 
 (defn touch
   "Runs handlers on the map without modifying its value."
-  [map & keys]
-  (let [kvs (merge (apply hash-map (interleave keys (take (count keys) (repeat nil))))
-		   (select-keys map keys))]
-    (merge-with-meta map (combine-watcher-updates map kvs {}))))
+  ([map key]
+     (touch map (agent nil) key))
+  ([map agent & keys]
+     (let [kvs (merge (apply hash-map (interleave keys (take (count keys) (repeat nil))))
+		      (select-keys map keys))
+	   diff (combine-watcher-updates map kvs {})
+	   new-map (merge-with-meta map diff)]
+       (notify-impure-watchers map new-map (clojure.core/keys diff) agent)
+       new-map)))
 
 (defn watch-keys
   "Adds a pure watch that is run when the key's value changes. f should be a
