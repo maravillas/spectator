@@ -6,7 +6,7 @@ Spectator is a Clojure library that provides a system for observing changes to m
 
 ### The Basics
 
-Watchers are functions that take two arguments, the previous map and the new map. They are expected to return a map of any further changes to apply to the map.
+Updaters are functions that take two arguments, the previous map and the new map. They are expected to return a map of any further changes to apply to the map.
 
     (defn celsius-to-fahrenheit [c]
       (Math/round (+ (* c (/ 9.0 5)) 32)))
@@ -20,20 +20,20 @@ Watchers are functions that take two arguments, the previous map and the new map
     (defn update-celsius [old new]
       {:celsius (fahrenheit-to-celsius (:fahrenheit new))})
 
-Add watchers to maps using <tt>watch-keys</tt>, specifying the key(s) they should observe. Modify the map using <tt>update</tt>.
+Add updaters to maps using <tt>add-updater</tt>, specifying the key(s) they should watch. Modify the map using <tt>update</tt>.
     
     (let [map {}
-          map (watch-keys map update-fahrenheit :celsius)
+          map (add-updater map update-fahrenheit :celsius)
           map (update map {:celsius 15})]
       map)
 
     => {:celsius 15, :fahrenheit 59}
 
-Correspondingly, watchers can be removed using <tt>unwatch-keys</tt>.
+Correspondingly, updaters can be removed using <tt>remove-updater</tt>.
 
-### Watcher Details
+### Updater Details
 
-Applicable watchers are run in the order they were added with each change to the map, whether the change originated through a call to <tt>update</tt> or as a result of another watcher.
+With each change to the map, the applicable updaters are run in the order they were added, whether the change originated through a call to <tt>update</tt> or as a result of another updater.
 
     (defn celsius-to-kelvin [c]
       (+ c 273.15))
@@ -42,18 +42,18 @@ Applicable watchers are run in the order they were added with each change to the
       {:kelvin (celsius-to-kelvin (:celsius new))})
 
     (let [map (-> {}
-                  (watch-keys update-celsius :fahrenheit)
-                  (watch-keys update-kelvin :celsius)
+                  (add-updater update-celsius :fahrenheit)
+                  (add-updater update-kelvin :celsius)
                   (update {:fahrenheit 212}))]
       map)
 
     => {:fahrenheit 212, :celsius 100, :kelvin 373.15}
 
-Cycles of watchers are fine, but you need to ensure that the values will eventually converge.
+Cycles of updaters are fine, but you need to ensure that the values will eventually converge.
 
     (def m (-> {}
-               (watch-keys update-fahrenheit :celsius)
-               (watch-keys update-celsius :fahrenheit)))
+               (add-updater update-fahrenheit :celsius)
+               (add-updater update-celsius :fahrenheit)))
 
     (update m {:celsius 17})
 
@@ -63,37 +63,37 @@ Cycles of watchers are fine, but you need to ensure that the values will eventua
 
     => {:fahrenheit 19, :celsius -7}
 
-Updates that don't change the map won't trigger the watchers. 
+Updates that don't change the map won't trigger the updaters. 
 
     (let [map (-> {:fahrenheit 0 :celsius 0}
-                  (watch-keys update-fahrenheit :celsius)
+                  (add-updater update-fahrenheit :celsius)
                   (update {:celsius 0}))]
       map)
 
     => {:fahrenheit 0, :celsius 0}
 
-The <tt>touch</tt> function will run the watchers without making a change to the map.
+The <tt>touch</tt> function will run the updaters without making a change to the map.
   
     (let [map (-> {:fahrenheit 0 :celsius 0}
-                  (watch-keys update-fahrenheit :celsius)
+                  (add-updater update-fahrenheit :celsius)
                   (touch :celsius))]
       map)
 
     => {:fahrenheit 32, :celsius 0}
 
-### Impure Watchers
+### Observers
 
-Side effects in watchers are not inherently bad, but when a map is stored in an atom or ref, its watchers may be called multiple times when the atom or ref tries to commit its value. If such is the case, <tt>watch-keys</tt> should only be used to add pure watcher functions. Impure watchers are added and removed using <tt>watch-keys-impure</tt> and <tt>unwatch-keys-impure</tt>.
+Side effects in updaters are not inherently bad, but when a map is stored in an atom or ref, its updaters may be called multiple times when the atom or ref tries to commit its value. If such is the case, updaters should only be pure functions. Impure functions are added and removed using <tt>add-observer</tt> and <tt>remove-observer</tt>.
 
-Impure watchers are treated differently. Pure watchers are run first, possibly multiple times due both to cascading updates and to atom/ref retries. Once the pure watcher updates have been resolved, impure watchers are dispatched to an agent with the old and new states. If the update is being run in a transaction, the dispatch is not executed until the transaction commits, as per the [Clojure docs](http://clojure.org/agents). 
+Observers are handled apart from updaters. Updaters are run first, possibly multiple times due both to cascading updates and to atom/ref retries. Once these updates have been resolved, observers are dispatched to an agent with the old and new states. If the update is being run in a transaction, the dispatch is not executed until the transaction commits, as per the [Clojure docs](http://clojure.org/agents). 
 
-Return values from these watchers are ignored - they cannot make further modifications to the map. The agent in which the impure watchers are run will receive a value of nil once they are completed, but this behavior should not be relied upon.
+Return values from observers are ignored - they cannot make further modifications to the map. The agent in which the observers are run will receive a value of nil once they are completed, but this behavior should not be relied upon.
 
-If the current thread needs to block until the impure watchers have completed, pass an agent to <tt>update</tt> and <tt>await</tt> it after the update:
+If the current thread needs to block until the observers have completed, pass an agent to <tt>update</tt> or <tt>touch</tt> and [<tt>await</tt>](http://richhickey.github.com/clojure/clojure.core-api.html#clojure.core/await) it after the update:
 
     (let [agent (agent nil)
           map (-> {}
-                  (watch-keys-impure (fn [old new] (debug "Impure watcher executing...")) :foo)
+                  (add-observer (fn [old new] (debug "Observer executing...")) :foo)
                   (update {:foo true} false {} agent))]
       (await agent))
 
@@ -101,10 +101,10 @@ Otherwise, you can omit the agent parameter and <tt>update</tt> will supply its 
 
 ### Silent Updates
 
-The map can be updated without executing the relevant watchers by specifying <tt>true</tt> for the silent parameter. The default value is <tt>false</tt>.
+The map can be updated without executing the relevant updaters and observers by specifying <tt>true</tt> for the silent parameter. The default value is <tt>false</tt>.
 
     (let [map (-> {:fahrenheit 0 :celsius 0}
-                  (watch-keys update-fahrenheit :celsius)
+                  (add-updater update-fahrenheit :celsius)
                   (update {:celsius 17} true))]
       map)  
 
@@ -112,28 +112,28 @@ The map can be updated without executing the relevant watchers by specifying <tt
 
 ### Memos
 
-Extra information can be sent to the watchers through <tt>update</tt> by specifying a map for the memo parameter. The default value is an empty map.
+Extra information can be sent to the updaters and observers through <tt>update</tt> by specifying a map for the memo parameter. The default value is an empty map.
 
-This map, along with an extra entry <tt>:initial-changes</tt>, is available to watchers by accessing the <tt>new</tt> parameter's metadata. Alternately, it can be read using the <tt>memo</tt> convenience function.
+This map, along with an extra entry <tt>:initial-changes</tt>, is available in updater and observer functions by accessing the <tt>new</tt> parameter's metadata. Alternatively, it can be read using the <tt>memo</tt> convenience function.
 
     (let [map (-> {}
-                  (watch-keys (fn [old new] {:info (memo new)}) :celsius)
+                  (add-updater (fn [old new] {:info (memo new)}) :celsius)
                   (update {:celsius 7} false {:source "sensor 1"}))]
       map)
 
     => {:celsius 7, :info {:source "sensor 1", :initial-changes {:celsius 7}}}
 
-Watchers can modify the memo for subsequent watchers using <tt>with-memo</tt>. Changes to the memo will not result in further cycles of watchers.
+Updaters can modify the memo for subsequent updaters using <tt>with-memo</tt>. Changes to the memo will not result in further cycles of updaters.
 
     (let [map (-> {}
-                  (watch-keys (fn [old new]
+                  (add-updater (fn [old new]
                                 (when (not (:enabled new))
                                   (with-memo {:enabled true} {:handled true})))
-                              :clicked)
-                  (watch-keys (fn [old new]
+                               :clicked)
+                  (add-updater (fn [old new]
                                 (when (:handled (memo new))
                                   {:complete true}))
-                              :clicked))]
+                               :clicked))]
       (update map {:clicked true}))
 
     => {:clicked true, :complete true, :enabled true}
@@ -144,10 +144,10 @@ Watchers can modify the memo for subsequent watchers using <tt>with-memo</tt>. C
 
     => {:enabled true, :clicked true}
 
-The memo is not available outside of the watchers.
+The memo is not available outside of the updaters and observers.
 
     (let [map (-> {}
-                  (watch-keys (fn [old new] {:info (memo new)}) :foo)
+                  (add-updater (fn [old new] {:info (memo new)}) :foo)
                   (update {:foo true} false {:extra-info 42}))]
       (memo map))
 
@@ -155,14 +155,14 @@ The memo is not available outside of the watchers.
 
 ### Vetoing
 
-Watchers can opt to veto all updates stemming from the initial update, including that initial update. Once a watcher vetoes an update, further watchers are not executed.
+Updaters can opt to veto all updates stemming from the initial update, including that initial update. Once an updater vetoes an update, further updaters are not executed.
 
 Veto updates by setting the <tt>:veto</tt> key in the memo to <tt>true</tt>, or by returning the result of the convenience function <tt>veto</tt>.
 
     (let [map (-> {}
-                  (watch-keys (fn [old new] (when (not (integer? (:celsius new))) (veto)))
-                              :celsius)
-                  (watch-keys (fn [old new] update-fahrenheit) :celsius)
+                  (add-updater (fn [old new] (when (not (integer? (:celsius new))) (veto)))
+                               :celsius)
+                  (add-updater (fn [old new] update-fahrenheit) :celsius)
                   (update {:celsius "one hundred"}))]
       map)
 
