@@ -127,7 +127,7 @@
 (deftest runs-one-watcher-without-changes-for-multiple-keys
   (let [map (-> {:count 0}
 		(add-updater (fn [old new] {:count (inc (:count new))}) :foo :bar :baz)
-		(touch nil :foo :bar))]
+		(touch {} nil :foo :bar))]
     (is (= (:count map)
 	   1))))
 
@@ -135,7 +135,7 @@
   (let [map (-> {:count 0}
 		(add-updater (fn [old new] {:count (inc (:count new))}) :foo :baz)
 		(add-updater (fn [old new] {:count (inc (:count new))}) :bar)
-		(touch nil :foo :bar))]
+		(touch {} nil :foo :bar))]
     (is (= (:count map)
 	   2))))
 
@@ -216,6 +216,15 @@
     (is (= (memo map)
 	   {:a 1 :b 2}))))
 
+(deftest merges-memos-in-updates
+  (let [map (-> {}
+		(add-updater (fn [old new] (with-memo {} {:foo true})) :foo)
+		(add-updater (fn [old new] (with-memo {} {:bar false})) :foo)
+		(add-updater (fn [old new] {:memo (memo new)}) :foo)
+		(update {:foo 1} false {:foo false}))]
+    (is (= (:memo map)
+	   {:initial-changes {:foo 1} :foo true :bar false}))))
+
 (deftest vetoes-updates
   (let [map (-> {:foo 1}
 		(add-updater (fn [old new] {:foo 2}) :bar)
@@ -227,12 +236,11 @@
     (is (not (:bar map)))))
 
 (deftest vetoes-skip-further-watchers
-  (let [flag (ref false)
-	map (-> {}
+  (let [map (-> {}
 		(add-updater (fn [old new] (veto)) :foo)
-		(add-updater (fn [old new] (dosync (ref-set flag true))) :foo)
+		(add-updater (fn [old new] {:updated true}) :foo)
 		(update {:foo 1}))]
-    (is (not @flag))))
+    (is (not (:updated map)))))
 
 (deftest preserves-metadata
   (let [map (-> (with-meta {} {:meta true})
@@ -299,6 +307,48 @@
 	agent (agent nil)
 	map (-> {}
 		(add-observer (fn [old new] (dosync (ref-set ref true))) :foo)
-		(touch agent :foo))]
+		(touch {} agent :foo))]
     (await agent)
     (is @ref)))
+
+(deftest provides-memo-to-observers
+  (let [ref (ref {})
+	agent (agent nil)
+	map (-> {}
+		(add-observer (fn [old new] (dosync (ref-set ref (memo new)))) :foo)
+		(update {:foo true} false {:a true} agent))]
+    (await agent)
+    (is (= @ref
+	   {:initial-changes {:foo true} :a true}))))
+
+(deftest passes-updater-memos-to-observers
+  (let [ref (ref {})
+	agent (agent nil)
+	map (-> {}
+		(add-updater (fn [old new] (with-memo {} {:updater true})) :foo)
+		(add-observer (fn [old new] (dosync (ref-set ref (memo new)))) :foo)
+		(update {:foo true} false {} agent))]
+    (await agent)
+    (is (= @ref
+	   {:initial-changes {:foo true} :updater true}))))
+
+(deftest provides-memo-to-observers-without-changes
+  (let [ref (ref {})
+	agent (agent nil)
+	map (-> {}
+		(add-updater (fn [old new] (with-memo {} {:extra-memo true})) :foo)
+		(add-observer (fn [old new] (dosync (ref-set ref (memo new)))) :foo)
+		(touch {} agent :foo))]
+    (await agent)
+    (is (= @ref
+	   {:extra-memo true}))))
+
+(deftest provides-original-memo-to-observers-without-changes
+  (let [ref (ref {})
+	agent (agent nil)
+	map (-> {}
+		(add-observer (fn [old new] (dosync (ref-set ref (memo new)))) :foo)
+		(touch {:bar true} agent :foo))]
+    (await agent)
+    (is (= @ref
+	   {:bar true}))))

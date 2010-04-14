@@ -17,49 +17,57 @@
 (defn- vetoed? [map]
   (:veto (memo map)))
 
-(defn- run-updaters [old-map updates updaters]
-  (let [new-map (merge-with-meta old-map updates)]
+(defn- run-updaters [old-map updates memo updaters]
+  (let [new-map (merge old-map updates)]
     (if (nil? (first updaters))
-      updates
-      (let [new-updates (merge-with-meta updates ((first updaters) old-map new-map))]
-	(if (vetoed? new-updates)
+      (with-memo updates memo)
+      (let [update ((first updaters) old-map (with-memo new-map memo))
+	    merged-updates (merge updates update)
+	    merged-memo (merge memo (spectator.core/memo update))]
+	(if (vetoed? update)
 	  (veto)
-	  (recur old-map new-updates (rest updaters)))))))
+	  (recur old-map merged-updates merged-memo (rest updaters)))))))
 
 (defn- updaters-for-keys [updaters keys]
   (distinct (mapcat #(%1 updaters) keys)))
 
 (defn- notify-updaters
-  ([old-map updates]
-     (notify-updaters old-map updates updates))
+  ([old-map updates memo]
+     (notify-updaters old-map updates memo updates))
   
-  ([old-map updates all-updates]
+  ([old-map updates memo all-updates]
      (let [updaters     (updaters-for-keys (updaters old-map) (keys updates))
-	   next-updates (run-updaters old-map updates updaters)
-	   new-map      (merge-with-meta old-map updates)
-	   diff         (with-meta (map-diff updates next-updates)
-			  (merge (meta updates) (meta next-updates)))
+	   next-updates (run-updaters old-map updates memo updaters)
+	   merged-map   (merge old-map updates)
+	   diff         (map-diff updates next-updates)
+	   merged-memo  (merge memo (spectator.core/memo next-updates))
+	   vetoed?      (vetoed? next-updates)
 	   changed?     (not (map-subset? next-updates all-updates))]
        (cond
-	(vetoed? next-updates) {}
-	changed?               (recur new-map diff (merge-with-meta all-updates next-updates))
-	true                   all-updates))))
+	vetoed?   {}
+	changed?  (recur merged-map diff merged-memo (merge all-updates next-updates))
+	true      (with-memo all-updates merged-memo)))))
 
 (defn- notify-observers
-  [old-map new-map keys agent]
+  [old-map new-map memo keys agent]
   (let [updaters (updaters-for-keys (observers old-map) keys)]
     (when (and updaters agent)
       (send agent (fn [state]
 		    (doseq [updater updaters]
-		      (updater old-map new-map)))))))
+		      (updater old-map (with-memo new-map memo))))))))
 
 (defn- redundant-update? [map key value]
   (and (contains? map key)
        (= (key map) value)))
 
-(defn- combine-updater-updates [map updates memo]
-  (let [memo (merge memo {:initial-changes updates})]
-    (without-memo (notify-updaters map (with-memo updates memo)))))
+(defn- combine-updates
+  ([map updates memo]
+     (combine-updates map updates memo true))
+  ([map updates memo add-initial-changes]
+     (let [memo (if add-initial-changes
+		  (merge memo {:initial-changes updates})
+		  memo)]
+       (notify-updaters map updates memo))))
 
 (defn- alter-watchers [map updater-key op f & keys]
   (let [funcs (take (count keys) (repeat f))
@@ -106,23 +114,25 @@
        (cond
 	redundant? map
 	silent     (merge-with-meta map updates)
-	true       (let [diff (combine-updater-updates map updates memo)
-			 new-map (merge-with-meta map diff)]
-		     (notify-observers map new-map (keys diff) agent)
+	true       (let [diff (combine-updates map updates memo)
+			 new-map (merge map diff)]
+		     (notify-observers map new-map (spectator.core/memo diff) (keys diff) agent)
 		     new-map)))))
 
 (defn touch
   "Runs the appropriate updaters and observers on the map without modifying its
   value."
   ([map key]
-     (touch map (agent nil) key))
-  ([map agent & keys]
+     (touch map {} key))
+  ([map memo key]
+     (touch map {} (agent nil) key))
+  ([map memo agent & keys]
      (let [kvs (merge (apply hash-map (interleave keys (take (count keys) (repeat nil))))
 		      (select-keys map keys))
-	   diff (combine-updater-updates map kvs {})
+	   diff (combine-updates map kvs memo false)
 	   new-map (merge-with-meta map diff)]
-       (notify-observers map new-map (clojure.core/keys diff) agent)
-       new-map)))
+       (notify-observers map new-map (spectator.core/memo diff) (clojure.core/keys diff) agent)
+       (without-memo new-map))))
 
 (defn add-updater
   "Adds an updater that is run when the key's value changes. f should be a
