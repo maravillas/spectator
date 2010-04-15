@@ -1,6 +1,6 @@
 (ns spectator.core
   (:require [spectator.multimap :as multimap])
-  (:use [spectator.map-util]
+  (:use [spectator map-util collection-util]
 	[clojure.contrib logging]))
 
 (declare memo with-memo veto)
@@ -132,7 +132,7 @@
   ([map memo key]
      (touch map {} (agent nil) key))
   ([map memo agent & keys]
-     (let [kvs (merge (apply hash-map (interleave keys (take (count keys) (repeat nil))))
+     (let [kvs (merge (apply hash-map (alternate-with keys nil))
 		      (select-keys map keys))
 	   diff (combine-updates map kvs memo false)
 	   new-map (merge-with-meta map diff)]
