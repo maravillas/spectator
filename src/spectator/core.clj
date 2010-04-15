@@ -17,16 +17,20 @@
 (defn- vetoed? [map]
   (:veto (memo map)))
 
+(defn- merge-updates [original-map original-memo updates]
+  (let [merged-map (merge original-map updates)
+	merged-memo (merge original-memo (memo updates))]
+    [merged-map merged-memo]))
+
 (defn- run-updaters [old-map updates memo updaters]
   (let [new-map (merge old-map updates)]
     (if (nil? (first updaters))
       (with-memo updates memo)
       (let [update ((first updaters) old-map (with-memo new-map memo))
-	    merged-updates (merge updates update)
-	    merged-memo (merge memo (spectator.core/memo update))]
+	    [new-updates new-memo] (merge-updates updates memo update)]
 	(if (vetoed? update)
 	  (veto)
-	  (recur old-map merged-updates merged-memo (rest updaters)))))))
+	  (recur old-map new-updates new-memo (rest updaters)))))))
 
 (defn- updaters-for-keys [updaters keys]
   (distinct (mapcat #(%1 updaters) keys)))
@@ -36,17 +40,18 @@
      (notify-updaters old-map updates memo updates))
   
   ([old-map updates memo all-updates]
-     (let [updaters     (updaters-for-keys (updaters old-map) (keys updates))
-	   next-updates (run-updaters old-map updates memo updaters)
-	   merged-map   (merge old-map updates)
-	   diff         (map-diff updates next-updates)
-	   merged-memo  (merge memo (spectator.core/memo next-updates))
-	   vetoed?      (vetoed? next-updates)
-	   changed?     (not (map-subset? next-updates all-updates))]
+     (let [updaters         (updaters-for-keys (updaters old-map) (keys updates))
+	   updater-results  (run-updaters old-map updates memo updaters)
+	   next-map         (merge old-map updates)
+	   next-updates     (map-diff updates updater-results)
+	   next-memo        (merge memo (spectator.core/memo updater-results))
+	   next-all-updates (merge all-updates updater-results)
+	   vetoed?          (vetoed? updater-results)
+	   changed?         (not (map-subset? updater-results all-updates))]
        (cond
-	vetoed?   {}
-	changed?  (recur merged-map diff merged-memo (merge all-updates next-updates))
-	true      (with-memo all-updates merged-memo)))))
+	vetoed?  {}
+	changed? (recur next-map next-updates next-memo next-all-updates)
+	true     (with-memo all-updates next-memo)))))
 
 (defn- notify-observers
   [old-map new-map memo keys agent]
