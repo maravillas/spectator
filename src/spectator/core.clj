@@ -24,23 +24,24 @@
 
 (defn- run-updaters [old-map updates memo updaters]
   (let [new-map (merge old-map updates)]
-    (if (nil? (first updaters))
+    (if (empty? updaters)
       (with-memo updates memo)
       (let [update ((first updaters) old-map (with-memo new-map memo))
 	    [new-updates new-memo] (merge-updates updates memo update)]
+	(trace (str "Result from updater " (first updaters) ": " update))
 	(if (vetoed? update)
 	  (veto)
 	  (recur old-map new-updates new-memo (rest updaters)))))))
 
-(defn- updaters-for-keys [updaters keys]
-  (distinct (mapcat #(%1 updaters) keys)))
+(defn- watchers-for-keys [watchers keys]
+  (distinct (mapcat #(%1 watchers) keys)))
 
 (defn- notify-updaters
   ([old-map updates memo]
      (notify-updaters old-map updates memo updates))
   
   ([old-map updates memo all-updates]
-     (let [updaters         (updaters-for-keys (updaters old-map) (keys updates))
+     (let [updaters         (watchers-for-keys (updaters old-map) (keys updates))
 	   updater-results  (run-updaters old-map updates memo updaters)
 	   next-map         (merge old-map updates)
 	   next-updates     (map-diff updates updater-results)
@@ -55,11 +56,12 @@
 
 (defn- notify-observers
   [old-map new-map memo keys agent]
-  (let [updaters (updaters-for-keys (observers old-map) keys)]
-    (when (and updaters agent)
+  (let [observers (watchers-for-keys (observers old-map) keys)]
+    (when (and observers agent)
       (send agent (fn [state]
-		    (doseq [updater updaters]
-		      (updater old-map (with-memo new-map memo))))))))
+		    (doseq [observer observers]
+		      (trace (str "Running observer " observer))
+		      (observer old-map (with-memo new-map memo))))))))
 
 (defn- redundant-update? [map key value]
   (and (contains? map key)
@@ -115,6 +117,8 @@
      (update map updates silent memo (agent nil)))
   
   ([map updates silent memo agent]
+     (debug (str "Updating map with " updates (when silent " (silently)")))
+     
      (let [redundant? (some #(apply redundant-update? map %1) updates)]
        (cond
 	redundant? map
@@ -132,6 +136,8 @@
   ([map memo key]
      (touch map {} (agent nil) key))
   ([map memo agent & keys]
+     (debug (str "Touching " keys))
+     
      (let [kvs (merge (apply hash-map (alternate-with keys nil))
 		      (select-keys map keys))
 	   diff (combine-updates map kvs memo false)
@@ -144,11 +150,15 @@
   function taking two arguments, the old map and the new map, and should return
   a map of the updates to apply to the map."
   [map f & keys]
+  (debug (str "Adding updater " f " to " keys))
+  
   (apply alter-watchers map :updaters multimap/add f keys))
 
 (defn remove-updater
   "Removes an updater from the specified keys."
   [map f & keys]
+  (debug (str "Removing updater " f " to " keys))
+  
   (apply alter-watchers map :updaters multimap/del f keys))
 
 (defn add-observer
@@ -158,9 +168,13 @@
 
   f should be a function taking two arguments, the old map and the new map."
   [map f & keys]
+  (debug (str "Adding observer " f " to " keys))
+  
   (apply alter-watchers map :observers multimap/add f keys))
 
 (defn remove-observer
   "Removes an observer from the specified keys."
   [map f & keys]
+  (debug (str "Removing observer " f " to " keys))
+  
   (apply alter-watchers map :observers multimap/del f keys))
