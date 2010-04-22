@@ -32,7 +32,7 @@
   (let [new-map (merge old-map updates)]
     (if (empty? updaters)
       (with-memo updates memo)
-      (let [update ((first updaters) old-map (with-memo new-map memo))
+      (let [update ((first updaters) old-map (with-memo new-map memo) (keys updates))
 	    [new-updates new-memo] (merge-updates updates memo update)]
 	(trace (str "Result from updater " (first updaters) ": " update))
 	(if (vetoed? update)
@@ -69,7 +69,7 @@
       (send agent (fn [state]
 		    (doseq [observer all-observers]
 		      (trace (str "Running observer " observer))
-		      (observer old-map (with-memo new-map memo))))))))
+		      (observer old-map (with-memo new-map memo) keys)))))))
 
 (defn- redundant-update? [map key value]
   (and (contains? map key)
@@ -159,8 +159,9 @@
 
 (defn add-updater
   "Adds an updater that is run when the key's value changes. f should be a
-  function taking two arguments, the old map and the new map, and should return
-  a map of the updates to apply to the map.
+  function taking three arguments: the old map, the new map, and the keys that
+  changed between the two. It should return a map of the updates to apply to
+  the map.
 
   If no keys are specified, the updater is run when any key in the map changes."
   ([map f]
@@ -177,23 +178,24 @@
      (debug (str "Removing updater " f " from all keys"))
      (alter-watchers map :global-updaters disj f))
   ([map f & keys]
-      (debug (str "Removing updater " f " to " keys))
-      (apply alter-watchers map :updaters multimap/del f keys)))
+     (debug (str "Removing updater " f " to " keys))
+     (apply alter-watchers map :updaters multimap/del f keys)))
 
 (defn add-observer
   "Adds an observer that is run when the key's value changes. Observers
   are run in an agent after all updaters have completed. Return values from
   observers are ignored.
 
-  f should be a function taking two arguments, the old map and the new map.
+  f should be a function taking three arguments: the old map, the new map, and
+  the keys that were changed between the two.
 
   If no keys are specified, the observer is run when any key in the map changes."
   ([map f]
      (debug (str "Adding observer " f " to all keys"))
      (alter-watchers map :global-observers conj f))
   ([map f & keys]
-      (debug (str "Adding observer " f " to " keys))
-      (apply alter-watchers map :observers multimap/add f keys)))
+     (debug (str "Adding observer " f " to " keys))
+     (apply alter-watchers map :observers multimap/add f keys)))
 
 (defn remove-observer
   "Removes an observer from the specified keys. If no keys are specified, the
@@ -202,5 +204,5 @@
      (debug (str "Removing observer " f " from all keys"))
      (alter-watchers map :global-observers disj f))
   ([map f & keys]
-      (debug (str "Removing observer " f " to " keys))
-      (apply alter-watchers map :observers multimap/del f keys)))
+     (debug (str "Removing observer " f " to " keys))
+     (apply alter-watchers map :observers multimap/del f keys)))

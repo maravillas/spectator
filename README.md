@@ -6,18 +6,18 @@ Spectator is a Clojure library that provides a system for observing changes to m
 
 ### The Basics
 
-Updaters are functions that take two arguments, the previous map and the new map. They are expected to return a map of any further changes to apply to the map.
+Updaters are functions that take three arguments, the previous map, the new map, and a list of the keys that changed between the previous and new maps. They are expected to return a map of any further changes to apply to the map.
 
     (defn celsius-to-fahrenheit [c]
       (Math/round (+ (* c (/ 9.0 5)) 32)))
 
-    (defn update-fahrenheit [old new]
+    (defn update-fahrenheit [old new diff]
       {:fahrenheit (celsius-to-fahrenheit (:celsius new))})
 
     (defn fahrenheit-to-celsius [f]
       (Math/round (* (- f 32) (/ 5.0 9))))
 
-    (defn update-celsius [old new]
+    (defn update-celsius [old new diff]
       {:celsius (fahrenheit-to-celsius (:fahrenheit new))})
 
 Add updaters to maps using <tt>add-updater</tt>, specifying the key(s) they should watch. Modify the map using <tt>update</tt>.
@@ -38,7 +38,7 @@ With each change to the map, the applicable updaters are run in the order they w
     (defn celsius-to-kelvin [c]
       (+ c 273.15))
 
-    (defn update-kelvin [old new]
+    (defn update-kelvin [old new diff]
       {:kelvin (celsius-to-kelvin (:celsius new))})
 
     (let [map (-> {}
@@ -93,7 +93,7 @@ If the current thread needs to block until the observers have completed, pass an
 
     (let [agent (agent nil)
           map (-> {}
-                  (add-observer (fn [old new] (debug "Observer executing...")) :foo)
+                  (add-observer (fn [old new diff] (debug "Observer executing...")) :foo)
                   (update {:foo true} false {} agent))]
       (await agent))
 
@@ -117,7 +117,7 @@ Extra information can be sent to the updaters and observers through <tt>update</
 This map, along with an extra entry <tt>:initial-changes</tt>, is available in updater and observer functions by accessing the <tt>new</tt> parameter's metadata. Alternatively, it can be read using the <tt>memo</tt> convenience function.
 
     (let [map (-> {}
-                  (add-updater (fn [old new] {:info (memo new)}) :celsius)
+                  (add-updater (fn [old new diff] {:info (memo new)}) :celsius)
                   (update {:celsius 7} false {:source "sensor 1"}))]
       map)
 
@@ -126,11 +126,11 @@ This map, along with an extra entry <tt>:initial-changes</tt>, is available in u
 Updaters can modify the memo for subsequent updaters using <tt>with-memo</tt>. Changes to the memo will not result in further cycles of updaters.
 
     (let [map (-> {}
-                  (add-updater (fn [old new]
+                  (add-updater (fn [old new diff]
                                 (when (not (:enabled new))
                                   (with-memo {:enabled true} {:handled true})))
                                :clicked)
-                  (add-updater (fn [old new]
+                  (add-updater (fn [old new diff]
                                 (when (:handled (memo new))
                                   {:complete true}))
                                :clicked))]
@@ -147,7 +147,7 @@ Updaters can modify the memo for subsequent updaters using <tt>with-memo</tt>. C
 The memo is not available outside of the updaters and observers.
 
     (let [map (-> {}
-                  (add-updater (fn [old new] {:info (memo new)}) :foo)
+                  (add-updater (fn [old new diff] {:info (memo new)}) :foo)
                   (update {:foo true} false {:extra-info 42}))]
       (memo map))
 
@@ -160,9 +160,9 @@ Updaters can opt to veto all updates stemming from the initial update, including
 Veto updates by setting the <tt>:veto</tt> key in the memo to <tt>true</tt>, or by returning the result of the convenience function <tt>veto</tt>.
 
     (let [map (-> {}
-                  (add-updater (fn [old new] (when (not (integer? (:celsius new))) (veto)))
+                  (add-updater (fn [old new diff] (when (not (integer? (:celsius new))) (veto)))
                                :celsius)
-                  (add-updater (fn [old new] update-fahrenheit) :celsius)
+                  (add-updater (fn [old new diff] update-fahrenheit) :celsius)
                   (update {:celsius "one hundred"}))]
       map)
 
