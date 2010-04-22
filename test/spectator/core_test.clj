@@ -355,12 +355,14 @@
 
 (deftest runs-global-updaters
   (let [map (-> {:foo 0 :bar 0 :baz 0}
-		(add-updater (fn [old new diff] {:sum (+ (:foo new) (:bar new) (:baz new))}))
-		(update {:foo 1})
-		(update {:bar 2})
-		(update {:baz 3}))]
-    (is (= (:sum map)
-	   6))))
+		(add-updater (fn [old new diff] (reduce (fn [all key]
+							  (assoc all key (Math/abs (key new))))
+							{} diff)))
+		(update {:foo -1})
+		(update {:bar -2})
+		(update {:baz -3}))]
+    (is (= map
+	   {:foo 1 :bar 2 :baz 3}))))
 
 (deftest removes-global-updaters
   (let [f (fn [old new diff] {:sum (+ (:foo new) (:bar new) (:baz new))})
