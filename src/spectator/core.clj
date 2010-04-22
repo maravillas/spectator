@@ -8,8 +8,14 @@
 (defn- updaters [map]
   (:updaters (meta map)))
 
+(defn- global-updaters [map]
+  (:global-updaters (meta map)))
+
 (defn- observers [map]
   (:observers (meta map)))
+
+(defn- global-observers [map]
+  (:global-observers (meta map)))
 
 (defn- without-memo [map]
   (with-meta map (dissoc (meta map) :memo)))
@@ -42,7 +48,8 @@
   
   ([old-map updates memo all-updates]
      (let [updaters         (watchers-for-keys (updaters old-map) (keys updates))
-	   updater-results  (run-updaters old-map updates memo updaters)
+	   all-updaters     (into updaters (global-updaters old-map))
+	   updater-results  (run-updaters old-map updates memo all-updaters)
 	   next-map         (merge old-map updates)
 	   next-updates     (map-diff updates updater-results)
 	   next-memo        (merge memo (spectator.core/memo updater-results))
@@ -56,10 +63,11 @@
 
 (defn- notify-observers
   [old-map new-map memo keys agent]
-  (let [observers (watchers-for-keys (observers old-map) keys)]
-    (when (and observers agent)
+  (let [observers (watchers-for-keys (observers old-map) keys)
+	all-observers (into observers (global-observers old-map))]
+    (when (and all-observers agent)
       (send agent (fn [state]
-		    (doseq [observer observers]
+		    (doseq [observer all-observers]
 		      (trace (str "Running observer " observer))
 		      (observer old-map (with-memo new-map memo))))))))
 
@@ -76,11 +84,15 @@
 		  memo)]
        (notify-updaters map updates memo))))
 
-(defn- alter-watchers [map updater-key op f & keys]
-  (let [funcs (take (count keys) (repeat f))
-	kvs (interleave keys funcs)
-	updaters (updater-key (meta map))]
-    (with-meta map (merge (meta map) {updater-key (apply op updaters kvs)}))))
+(defn- alter-watchers
+  ([map updater-key op f]
+     (let [updaters (or (updater-key (meta map)) #{})]
+       (with-meta map (merge (meta map) {updater-key (op updaters f)}))))
+  ([map updater-key op f & keys]
+      (let [funcs (take (count keys) (repeat f))
+	    kvs (interleave keys funcs)
+	    updaters (updater-key (meta map))]
+	(with-meta map (merge (meta map) {updater-key (apply op updaters kvs)})))))
 
 ;;;;;; Public API ;;;;;;
 
@@ -148,33 +160,47 @@
 (defn add-updater
   "Adds an updater that is run when the key's value changes. f should be a
   function taking two arguments, the old map and the new map, and should return
-  a map of the updates to apply to the map."
-  [map f & keys]
-  (debug (str "Adding updater " f " to " keys))
-  
-  (apply alter-watchers map :updaters multimap/add f keys))
+  a map of the updates to apply to the map.
+
+  If no keys are specified, the updater is run when any key in the map changes."
+  ([map f]
+     (debug (str "Adding updater " f " to all keys"))
+     (alter-watchers map :global-updaters conj f))
+  ([map f & keys]
+     (debug (str "Adding updater " f " to " keys))
+     (apply alter-watchers map :updaters multimap/add f keys)))
 
 (defn remove-updater
-  "Removes an updater from the specified keys."
-  [map f & keys]
-  (debug (str "Removing updater " f " to " keys))
-  
-  (apply alter-watchers map :updaters multimap/del f keys))
+  "Removes an updater from the specified keys. If no keys are specified, the
+  updater is removed from those updaters watching any key."
+  ([map f]
+     (debug (str "Removing updater " f " from all keys"))
+     (alter-watchers map :global-updaters disj f))
+  ([map f & keys]
+      (debug (str "Removing updater " f " to " keys))
+      (apply alter-watchers map :updaters multimap/del f keys)))
 
 (defn add-observer
   "Adds an observer that is run when the key's value changes. Observers
   are run in an agent after all updaters have completed. Return values from
   observers are ignored.
 
-  f should be a function taking two arguments, the old map and the new map."
-  [map f & keys]
-  (debug (str "Adding observer " f " to " keys))
-  
-  (apply alter-watchers map :observers multimap/add f keys))
+  f should be a function taking two arguments, the old map and the new map.
+
+  If no keys are specified, the observer is run when any key in the map changes."
+  ([map f]
+     (debug (str "Adding observer " f " to all keys"))
+     (alter-watchers map :global-observers conj f))
+  ([map f & keys]
+      (debug (str "Adding observer " f " to " keys))
+      (apply alter-watchers map :observers multimap/add f keys)))
 
 (defn remove-observer
-  "Removes an observer from the specified keys."
-  [map f & keys]
-  (debug (str "Removing observer " f " to " keys))
-  
-  (apply alter-watchers map :observers multimap/del f keys))
+  "Removes an observer from the specified keys. If no keys are specified, the
+   observer is removed from those observers watching any key."
+  ([map f]
+     (debug (str "Removing observer " f " from all keys"))
+     (alter-watchers map :global-observers disj f))
+  ([map f & keys]
+      (debug (str "Removing observer " f " to " keys))
+      (apply alter-watchers map :observers multimap/del f keys)))

@@ -352,3 +352,47 @@
     (await agent)
     (is (= @ref
 	   {:bar true}))))
+
+(deftest runs-global-updaters
+  (let [map (-> {:foo 0 :bar 0 :baz 0}
+		(add-updater (fn [old new] {:sum (+ (:foo new) (:bar new) (:baz new))}))
+		(update {:foo 1})
+		(update {:bar 2})
+		(update {:baz 3}))]
+    (is (= (:sum map)
+	   6))))
+
+(deftest removes-global-updaters
+  (let [f (fn [old new] {:sum (+ (:foo new) (:bar new) (:baz new))})
+	map (-> {:foo 0 :bar 0 :baz 0}
+		(add-updater f)
+		(update {:foo 1})
+		(remove-updater f)
+		(update {:bar 2})
+		(update {:baz 3}))]
+    (is (= (:sum map)
+	   1))))
+
+(deftest runs-global-observers
+  (let [ref (ref 0)
+	agent (agent nil)
+	map (-> {}
+		(add-observer (fn [old new] (dosync (commute ref inc))))
+		(update {:foo 1} false {} agent)
+		(update {:bar 2 :baz 3} false {} agent))]
+    (await agent)
+    (is (= @ref
+	   2))))
+
+(deftest removes-global-observer
+  (let [ref (ref 0)
+	f (fn [old new] (dosync (commute ref inc)))
+	agent (agent nil)
+	map (-> {}
+		(add-observer f)
+		(update {:foo 1} false {} agent)
+		(remove-observer f)
+		(update {:bar 2 :baz 3} false {} agent))]
+    (await agent)
+    (is (= @ref
+	   1))))
