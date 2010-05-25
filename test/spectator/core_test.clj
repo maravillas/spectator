@@ -117,29 +117,48 @@
     (is (= (:count map)
 	   1))))
 
-(deftest runs-watchers-without-changes-for-one-key
+(deftest runs-watchers-when-touching-one-key
   (let [map (-> {:count 0}
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :foo)
 		(touch :foo))]
     (is (= (:count map)
 	   1))))
 
-(deftest runs-one-watcher-without-changes-for-multiple-keys
+(deftest runs-one-watcher-when-touching-multiple-keys
   (let [map (-> {:count 0}
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :foo :bar :baz)
-		(touch {} nil :foo :bar))]
+		(touch-all [:foo :bar]))]
     (is (= (:count map)
 	   1))))
 
-(deftest runs-watchers-without-changes-for-multiple-keys
+(deftest runs-watchers-when-touching-multiple-keys
   (let [map (-> {:count 0}
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :foo :baz)
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :bar)
-		(touch {} nil :foo :bar))]
+		(touch-all [:foo :bar]))]
     (is (= (:count map)
 	   2))))
 
-(deftest runs-chained-watchers-without-changes
+(deftest includes-memo-when-touching-multiple-keys
+  (let [map (-> {:i 0}
+		(add-updater (fn [old new diff] {:i (+ (:i new) (:step (memo new)))}) :foo :baz)
+		(add-updater (fn [old new diff] {:i (+ (:i new) (:step (memo new)))}) :bar)
+		(touch-all [:foo :bar] :memo {:step 2}))]
+    (is (= (:i map)
+	   4))))
+
+(deftest runs-observers-when-touching-multiple-keys
+  (let [ref (ref 0)
+	agent (agent nil)
+	map (-> {:foo 0 :bar 0}
+		(add-observer (fn [old new diff] (dosync (commute ref inc))) :foo :baz)
+		(add-observer (fn [old new diff] (dosync (commute ref inc))) :bar)
+		(touch-all [:foo :bar] :agent agent))]
+    (await agent)
+    (is (= @ref
+	   2))))
+
+(deftest runs-chained-watchers-when-touching
   (let [map (-> {:count 0}
 		(add-updater (fn [old new diff] {:bar 1 :count (inc (:count new))}) :foo)
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :bar)
@@ -189,7 +208,7 @@
 (deftest updates-silently
   (let [map (-> {}
 		(add-updater (fn [old new diff] {:run true}) :foo)
-		(update {:foo 1} true))]
+		(update {:foo 1} :silent true))]
     (is (= (:foo map)
 	   1))
     (is (not (:run map)))))
@@ -197,7 +216,7 @@
 (deftest sends-initial-memo
   (let [map (-> {}
 		(add-updater (fn [old new diff] {:memo (:foo (memo new))}) :bar)
-		(update {:bar 1} false {:foo true}))]
+		(update {:bar 1} :memo {:foo true}))]
     (is (:memo map))))
 
 (deftest keeps-old-and-new-params-correct
@@ -221,7 +240,7 @@
 		(add-updater (fn [old new diff] (with-memo {} {:foo true})) :foo)
 		(add-updater (fn [old new diff] (with-memo {} {:bar false})) :foo)
 		(add-updater (fn [old new diff] {:memo (memo new)}) :foo)
-		(update {:foo 1} false {:foo false}))]
+		(update {:foo 1} :memo {:foo false}))]
     (is (= (:memo map)
 	   {:initial-changes {:foo 1} :foo true :bar false}))))
 
@@ -254,7 +273,7 @@
 	map (-> {}
 		(add-updater (fn [old new diff] {:pure true}) :foo)
 		(add-observer (fn [old new diff] (swap! atom (fn [_] true))) :foo)
-		(update {:foo true} false {} agent))]
+		(update {:foo true} :agent agent))]
     (await agent)
     (is @atom)))
 
@@ -263,7 +282,7 @@
 	agent (agent nil)
 	map (-> {:ignored true}
 		(add-observer (fn [old new diff] {:ignored false}) :foo)
-		(update {:foo true} false {} agent))]
+		(update {:foo true} :agent agent))]
     (await agent)
     (is (:ignored map))))
 
@@ -272,7 +291,7 @@
 	agent (agent nil)
 	map (-> {:foo false :bar true}
 		(add-observer (fn [old new diff] (swap! atom (fn [_] {:old old :new new}))) :foo)
-		(update {:foo true} false {} agent))]
+		(update {:foo true} :agent agent))]
     (await agent)
     (is (= (:new @atom)
 	   {:foo true :bar true}))
@@ -286,7 +305,7 @@
 	map (-> {}
 		(add-observer (fn [old new diff] (dosync (ref-set ref1 true))) :foo)
 		(add-observer (fn [old new diff] (dosync (ref-set ref2 true))) :bar)
-		(update {:foo true} false {} agent))]
+		(update {:foo true} :agent agent))]
     (await agent)
     (is @ref1)
     (is (not @ref2))))
@@ -297,17 +316,17 @@
 	map (-> {:foo false :bar false}
 		(add-updater (fn [old new diff] {:bar true}) :foo)
 		(add-observer (fn [old new diff] (dosync (ref-set ref new))) :foo)
-		(update {:foo true} false {} agent))]
+		(update {:foo true} :agent agent))]
     (await agent)
     (is (= @ref
 	   {:foo true :bar true}))))
 
-(deftest runs-observers-without-changes
+(deftest runs-observers-when-touching
   (let [ref (ref false)
 	agent (agent nil)
 	map (-> {}
 		(add-observer (fn [old new diff] (dosync (ref-set ref true))) :foo)
-		(touch {} agent :foo))]
+		(touch :foo :agent agent))]
     (await agent)
     (is @ref)))
 
@@ -316,7 +335,7 @@
 	agent (agent nil)
 	map (-> {}
 		(add-observer (fn [old new diff] (dosync (ref-set ref (memo new)))) :foo)
-		(update {:foo true} false {:a true} agent))]
+		(update {:foo true} :memo {:a true} :agent agent))]
     (await agent)
     (is (= @ref
 	   {:initial-changes {:foo true} :a true}))))
@@ -327,7 +346,7 @@
 	map (-> {}
 		(add-updater (fn [old new diff] (with-memo {} {:updater true})) :foo)
 		(add-observer (fn [old new diff] (dosync (ref-set ref (memo new)))) :foo)
-		(update {:foo true} false {} agent))]
+		(update {:foo true} :agent agent))]
     (await agent)
     (is (= @ref
 	   {:initial-changes {:foo true} :updater true}))))
@@ -338,7 +357,7 @@
 	map (-> {}
 		(add-updater (fn [old new diff] (with-memo {} {:extra-memo true})) :foo)
 		(add-observer (fn [old new diff] (dosync (ref-set ref (memo new)))) :foo)
-		(touch {} agent :foo))]
+		(touch :foo :agent agent))]
     (await agent)
     (is (= @ref
 	   {:extra-memo true}))))
@@ -348,7 +367,7 @@
 	agent (agent nil)
 	map (-> {}
 		(add-observer (fn [old new diff] (dosync (ref-set ref (memo new)))) :foo)
-		(touch {:bar true} agent :foo))]
+		(touch :foo :memo {:bar true} :agent agent))]
     (await agent)
     (is (= @ref
 	   {:bar true}))))
@@ -380,8 +399,8 @@
 	agent (agent nil)
 	map (-> {}
 		(add-observer (fn [old new diff] (dosync (commute ref inc))))
-		(update {:foo 1} false {} agent)
-		(update {:bar 2 :baz 3} false {} agent))]
+		(update {:foo 1} :agent agent)
+		(update {:bar 2 :baz 3} :agent agent))]
     (await agent)
     (is (= @ref
 	   2))))
@@ -392,9 +411,9 @@
 	agent (agent nil)
 	map (-> {}
 		(add-observer f)
-		(update {:foo 1} false {} agent)
+		(update {:foo 1} :agent agent)
 		(remove-observer f)
-		(update {:bar 2 :baz 3} false {} agent))]
+		(update {:bar 2 :baz 3} :agent agent))]
     (await agent)
     (is (= @ref
 	   1))))
@@ -418,8 +437,8 @@
 			      :foo)
 		(add-observer (fn [old new diff] (dosync (commute ref merge {:diff2 diff})))
 			      :bar)
-		(update {:foo 1} false {} agent)
-		(update {:bar 2 :baz 3} false {} agent))]
+		(update {:foo 1} :agent agent)
+		(update {:bar 2 :baz 3} :agent agent))]
     (await agent)
     (is (= (:diff1 @ref)
 	   [:foo]))
@@ -442,7 +461,7 @@
 		(add-updater (fn [old new diff] {:c (inc (:b new))}) :b)
 		(add-observer (fn [old new diff] (dosync (commute ref merge {:diff diff})))
 			      :b)
-		(update {:a 3}))]
+		(update {:a 3} :agent agent))]
     (await agent)
     (is (= (sort (:diff @ref))
 	   (sort [:a :b :c])))))
