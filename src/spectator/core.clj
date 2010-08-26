@@ -1,8 +1,7 @@
 (ns spectator.core
   (:require [spectator.multimap :as multimap])
   (:use [spectator map-util collection-util]
-	[clojure.contrib logging]
-	[clojure.contrib.def :only [defnk]]))
+	[clojure.contrib logging]))
 
 (declare memo with-memo veto)
 
@@ -115,7 +114,7 @@
   []
   (with-memo {} {:veto true}))
 
-(defnk update 
+(defn update 
   "Returns a new map that contains updated key-value mappings, and executes any
   updaters for the corresponding keys.
 
@@ -125,7 +124,7 @@
     :memo   - Added to the memo passed to updaters.
               Defaults to {}.
     :agent  - Specifies the agent to use when calling the observers."
-  [map updates :silent false :memo {} :agent (agent nil)]
+  [map updates & {:keys [silent memo agent] :or {silent false memo {} agent (agent nil)}}]
   (debug (str "Updating map with " updates (when silent " (silently)")))
   
   (let [redundant? (some #(apply redundant-update? map %1) updates)]
@@ -144,17 +143,17 @@
     (notify-observers map new-map (spectator.core/memo diff) (clojure.core/keys diff) agent)
     (without-memo new-map)))
 
-(defnk touch
+(defn touch
   "Runs the appropriate updaters and observers on the map without modifying its
   value."
-  [map key :memo {} :agent (agent nil)]
+  [map key & {:keys [memo agent] :or {memo {} agent (agent nil)}}]
   (debug (str "Touching " key))
   (touch-with-values map {key (:key map)} memo agent))
 
-(defnk touch-all
+(defn touch-all
   "Runs the appropriate updaters and observers on the map without modifying its
   value."
-  [map keys :memo {} :agent (agent nil)]
+  [map keys & {:keys [memo agent] :or {memo {} agent (agent nil)}}]
   (debug (str "Touching " keys))
   (let [kvs (merge (apply hash-map (alternate-with keys nil))
 		   (select-keys map keys))]
