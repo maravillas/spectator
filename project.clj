@@ -1,4 +1,4 @@
-(defproject spectator/spectator "1.2.0"
+(defproject spectator/spectator "1.2.1-SNAPSHOT"
   :description "A functional event system for Clojure maps."
   :dependencies [[org.clojure/clojure "1.2.0"]
                  [org.clojure/clojure-contrib "1.2.0"]
