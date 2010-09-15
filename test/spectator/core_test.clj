@@ -127,7 +127,7 @@
 (deftest runs-one-watcher-when-touching-multiple-keys
   (let [map (-> {:count 0}
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :foo :bar :baz)
-		(touch-all [:foo :bar]))]
+		(touch [:foo :bar]))]
     (is (= (:count map)
 	   1))))
 
@@ -135,7 +135,7 @@
   (let [map (-> {:count 0}
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :foo :baz)
 		(add-updater (fn [old new diff] {:count (inc (:count new))}) :bar)
-		(touch-all [:foo :bar]))]
+		(touch [:foo :bar]))]
     (is (= (:count map)
 	   2))))
 
@@ -143,7 +143,7 @@
   (let [map (-> {:i 0}
 		(add-updater (fn [old new diff] {:i (+ (:i new) (:step (memo new)))}) :foo :baz)
 		(add-updater (fn [old new diff] {:i (+ (:i new) (:step (memo new)))}) :bar)
-		(touch-all [:foo :bar] :memo {:step 2}))]
+		(touch [:foo :bar] :memo {:step 2}))]
     (is (= (:i map)
 	   4))))
 
@@ -153,7 +153,7 @@
 	map (-> {:foo 0 :bar 0}
 		(add-observer (fn [old new diff] (dosync (commute ref inc))) :foo :baz)
 		(add-observer (fn [old new diff] (dosync (commute ref inc))) :bar)
-		(touch-all [:foo :bar] :agent agent))]
+		(touch [:foo :bar] :agent agent))]
     (await agent)
     (is (= @ref
 	   2))))

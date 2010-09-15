@@ -143,16 +143,19 @@
     (notify-observers map new-map (spectator.core/memo diff) (clojure.core/keys diff) agent)
     (without-memo new-map)))
 
-(defn touch
+(defmulti touch
   "Runs the appropriate updaters and observers on the map without modifying its
-  value."
-  [map key & {:keys [memo agent] :or {memo {} agent (agent nil)}}]
-  (debug (str "Touching " key))
-  (touch-with-values map {key (:key map)} memo agent))
+  value.
 
-(defn touch-all
-  "Runs the appropriate updaters and observers on the map without modifying its
-  value."
+  keys may be a single key or sequence of keys to touch."
+  (fn [_ keys & _] (class keys)))
+
+(defmethod touch clojure.lang.Keyword
+  [map keys & {:keys [memo agent] :or {memo {} agent (agent nil)}}]
+  (debug (str "Touching " keys))
+  (touch-with-values map {keys (:key map)} memo agent))
+
+(defmethod touch clojure.lang.Seqable
   [map keys & {:keys [memo agent] :or {memo {} agent (agent nil)}}]
   (debug (str "Touching " keys))
   (let [kvs (merge (apply hash-map (alternate-with keys nil))
